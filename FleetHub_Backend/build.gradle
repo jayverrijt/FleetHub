@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.3.4'
     id 'io.spring.dependency-management' version '1.1.6'
+    id 'jacoco'
 }
 
 group = 'nl.fleethub'
@@ -23,7 +24,10 @@ repositories {
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    // Voorkomt dat Mockito via bytecode-manipulatie crasht op JDK 25 runtime classes
+    testImplementation 'org.mockito:mockito-subclass:5.14.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -31,6 +35,74 @@ springBoot {
     mainClass = 'nl.fleethub.backend.BackendApplication'
 }
 
+jacoco {
+    toolVersion = "0.8.12"
+}
+
 tasks.named('test') {
     useJUnitPlatform()
+    // Sta toe dat tests JVM-reflectie doen zonder bytecode crash
+    jvmArgs(['-XX:+EnableDynamicAgentLoading', '-Dnet.bytebuddy.experimental=true'])
+    finalizedBy tasks.jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn tasks.test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                    'nl/fleethub/backend/BackendApplication.class',
+                    'nl/fleethub/backend/dto/**',
+                    'nl/fleethub/backend/model/**',
+                    'nl/fleethub/backend/repository/**' // Sluit mock repositories uit
+            ])
+        }))
+    }
+}
+
+jacocoTestCoverageVerification {
+    dependsOn tasks.jacocoTestReport
+    violationRules {
+        rule {
+            element = 'CLASS'
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 1.00
+            }
+            excludes = [
+                    'nl.fleethub.backend.BackendApplication',
+                    'nl.fleethub.backend.dto.*',
+                    'nl.fleethub.backend.model.*',
+                    'nl.fleethub.backend.repository.*'
+            ]
+        }
+    }
+}
+
+jacocoTestCoverageVerification {
+    dependsOn tasks.jacocoTestReport
+    violationRules {
+        rule {
+            element = 'CLASS'
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 1.00
+            }
+            excludes = [
+                    'nl.fleethub.backend.BackendApplication',
+                    'nl.fleethub.backend.dto.*',
+                    'nl.fleethub.backend.model.*'
+            ]
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.jacocoTestCoverageVerification
 }
