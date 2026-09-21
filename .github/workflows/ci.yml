@@ -1,0 +1,40 @@
+name: FleetHub Backend CI
+
+on:
+  push:
+    branches: [ "development", "feature/**" ]
+  pull_request:
+    branches: [ "production" ]
+
+jobs:
+  build-and-test:
+    name: Build & Verify (Unit Tests + JaCoCo)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./FleetHub_Backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Run Build and Tests with Coverage Verification
+        run: ./gradlew clean check --no-daemon
+
+      - name: Upload JaCoCo Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-test-report
+          path: FleetHub_Backend/build/reports/jacoco/test/html/
