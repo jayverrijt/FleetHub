@@ -24,11 +24,13 @@ repositories {
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'com.mysql:mysql-connector-j'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    // Voorkomt dat Mockito via bytecode-manipulatie crasht op JDK 25 runtime classes
     testImplementation 'org.mockito:mockito-subclass:5.14.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'com.h2database:h2'
 }
 
 springBoot {
@@ -41,8 +43,12 @@ jacoco {
 
 tasks.named('test') {
     useJUnitPlatform()
-    // Sta toe dat tests JVM-reflectie doen zonder bytecode crash
-    jvmArgs(['-XX:+EnableDynamicAgentLoading', '-Dnet.bytebuddy.experimental=true'])
+    jvmArgs([
+            '-XX:+EnableDynamicAgentLoading',
+            '-Dnet.bytebuddy.experimental=true'
+    ])
+    // Voorkomt dat de JaCoCo-agent crasht op interne JDK 25 runtime-packages
+    systemProperty 'jacoco-agent.excludes', 'sun.*:jdk.*:org.gradle.*:com.sun.*'
     finalizedBy tasks.jacocoTestReport
 }
 
@@ -72,15 +78,13 @@ jacocoTestCoverageVerification {
             limit {
                 counter = 'LINE'
                 value = 'COVEREDRATIO'
-                minimum = 0.80
+                minimum = 0.80 // 80% minimale line coverage op actieve services en controllers
             }
             excludes = [
                     'nl.fleethub.backend.BackendApplication',
                     'nl.fleethub.backend.dto.*',
                     'nl.fleethub.backend.model.*',
-                    'nl.fleethub.backend.repository.*',
-                    'nl.fleethub.backend.controller.VehicleController',
-                    'nl.fleethub.backend.service.VehicleService'
+                    'nl.fleethub.backend.repository.*'
             ]
         }
     }

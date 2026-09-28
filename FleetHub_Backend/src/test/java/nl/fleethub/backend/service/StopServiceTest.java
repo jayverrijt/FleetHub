@@ -40,7 +40,7 @@ class StopServiceTest {
         List<DeliveryStop> result = stopService.getActiveStopsForDriver(101L);
 
         assertEquals(1, result.size());
-        assertEquals("ORD-1001", result.get(0).getOrderNumber());
+        assertEquals("ORD-1001", result.getFirst().getOrderNumber());
         verify(stopRepository, times(1)).findActiveByDriverId(101L);
     }
 
@@ -60,9 +60,10 @@ class StopServiceTest {
     @Test
     @DisplayName("UT-03: Foutmelding gooien als status null is")
     void updateStopStatus_ThrowsException_WhenStatusIsNull() {
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
-            stopService.updateStopStatus(1L, null);
-        });
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> stopService.updateStopStatus(1L, null)
+        );
 
         assertEquals("Status is required", ex.getMessage());
         verify(stopRepository, never()).updateStatus(anyLong(), any());
@@ -71,23 +72,25 @@ class StopServiceTest {
     @Test
     @DisplayName("UT-04: Foutmelding gooien als status PENDING is")
     void updateStopStatus_ThrowsException_WhenStatusIsPending() {
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
-            stopService.updateStopStatus(1L, StopStatus.PENDING);
-        });
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> stopService.updateStopStatus(1L, StopStatus.PENDING)
+        );
 
         assertEquals("Cannot reset stop status back to PENDING", ex.getMessage());
         verify(stopRepository, never()).updateStatus(anyLong(), any());
     }
 
     @Test
-    @DisplayName("UT-05: Exceptie doorduwen wanneer stopRepository faalt (bijv. ID niet gevonden)")
+    @DisplayName("UT-05: Exceptie doorduwen wanneer stopRepository faalt (ID niet gevonden)")
     void updateStopStatus_ThrowsException_WhenRepositoryFails() {
         when(stopRepository.updateStatus(999L, StopStatus.DELIVERED))
                 .thenThrow(new IllegalArgumentException("Stop with id 999 not found"));
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
-            stopService.updateStopStatus(999L, StopStatus.DELIVERED);
-        });
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> stopService.updateStopStatus(999L, StopStatus.DELIVERED)
+        );
 
         assertEquals("Stop with id 999 not found", ex.getMessage());
         verify(stopRepository, times(1)).updateStatus(999L, StopStatus.DELIVERED);

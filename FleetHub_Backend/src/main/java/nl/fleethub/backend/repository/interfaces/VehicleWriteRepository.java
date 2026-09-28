@@ -4,6 +4,6 @@ import nl.fleethub.backend.model.Vehicle;
 import nl.fleethub.backend.model.VehicleStatus;
 
 public interface VehicleWriteRepository {
-    Vehicle updateStatus(Long id, VehicleStatus status);
     Vehicle save(Vehicle vehicle);
+    Vehicle updateStatus(Long id, VehicleStatus status);
 }

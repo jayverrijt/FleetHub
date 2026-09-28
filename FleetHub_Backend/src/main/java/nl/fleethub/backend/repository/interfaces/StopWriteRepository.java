@@ -4,5 +4,6 @@ import nl.fleethub.backend.model.DeliveryStop;
 import nl.fleethub.backend.model.StopStatus;
 
 public interface StopWriteRepository {
+    DeliveryStop save(DeliveryStop stop);
     DeliveryStop updateStatus(Long id, StopStatus newStatus);
 }

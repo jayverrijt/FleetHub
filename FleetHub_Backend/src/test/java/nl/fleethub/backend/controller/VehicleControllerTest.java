@@ -1,101 +1,108 @@
 package nl.fleethub.backend.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import nl.fleethub.backend.dto.CreateVehicleRequest;
 import nl.fleethub.backend.dto.UpdateVehicleStatusRequest;
 import nl.fleethub.backend.model.Vehicle;
 import nl.fleethub.backend.model.VehicleStatus;
 import nl.fleethub.backend.service.VehicleService;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@ExtendWith(MockitoExtension.class)
+@WebMvcTest(VehicleController.class)
 class VehicleControllerTest {
 
-    @Mock
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockBean
     private VehicleService vehicleService;
 
-    @InjectMocks
-    private VehicleController vehicleController;
+    @Test
+    @DisplayName("API-V01: GET /api/vehicles geeft 200 en lijst van voertuigen")
+    void getAllVehicles_Success() throws Exception {
+        Vehicle vehicle = new Vehicle(1L, "V-101-BB", "Mercedes-Benz eVito", VehicleStatus.AVAILABLE, 60, 240, null);
+        when(vehicleService.getAllVehicles()).thenReturn(List.of(vehicle));
 
-    private Vehicle sampleVehicle;
-
-    @BeforeEach
-    void setUp() {
-        sampleVehicle = new Vehicle(1L, "V-101-BB", "Mercedes-Benz eVito", VehicleStatus.AVAILABLE, 60, 240, 101L);
+        mockMvc.perform(get("/api/vehicles"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].licensePlate").value("V-101-BB"));
     }
 
     @Test
-    @DisplayName("API-V01: GET /api/vehicles geeft 200 OK met lijst")
-    void getAllVehicles_Returns200() {
-        when(vehicleService.getAllVehicles()).thenReturn(List.of(sampleVehicle));
+    @DisplayName("API-V02: GET /api/vehicles/{id} geeft 200 bij bestaand voertuig")
+    void getVehicleById_Success() throws Exception {
+        Vehicle vehicle = new Vehicle(1L, "V-101-BB", "Mercedes-Benz eVito", VehicleStatus.AVAILABLE, 60, 240, null);
+        when(vehicleService.getVehicleById(1L)).thenReturn(vehicle);
 
-        ResponseEntity<List<Vehicle>> response = vehicleController.getAllVehicles();
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(1, response.getBody().size());
-        verify(vehicleService, times(1)).getAllVehicles();
+        mockMvc.perform(get("/api/vehicles/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.licensePlate").value("V-101-BB"));
     }
 
     @Test
-    @DisplayName("API-V02: GET /api/vehicles/{id} geeft 200 OK bij bestaand ID")
-    void getVehicleById_Returns200_WhenExists() {
-        when(vehicleService.getVehicleById(1L)).thenReturn(sampleVehicle);
+    @DisplayName("API-V03: GET /api/vehicles/{id} geeft 404 bij onbekend ID")
+    void getVehicleById_NotFound() throws Exception {
+        when(vehicleService.getVehicleById(999L)).thenThrow(new IllegalArgumentException("Vehicle with id 999 not found"));
 
-        ResponseEntity<Vehicle> response = vehicleController.getVehicleById(1L);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals("V-101-BB", response.getBody().getLicensePlate());
-        verify(vehicleService, times(1)).getVehicleById(1L);
+        mockMvc.perform(get("/api/vehicles/999"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    @DisplayName("API-V03: GET /api/vehicles/{id} geeft 404 NOT FOUND bij onbekend ID")
-    void getVehicleById_Returns404_WhenNotFound() {
-        when(vehicleService.getVehicleById(99L)).thenThrow(new IllegalArgumentException("Vehicle with id 99 not found"));
+    @DisplayName("API-V04: POST /api/vehicles geeft 201 bij succesvolle creatie")
+    void createVehicle_Success() throws Exception {
+        CreateVehicleRequest request = new CreateVehicleRequest("V-101-BB", "Mercedes-Benz eVito", VehicleStatus.AVAILABLE, 60, 240, null);
+        Vehicle vehicle = new Vehicle(1L, "V-101-BB", "Mercedes-Benz eVito", VehicleStatus.AVAILABLE, 60, 240, null);
+        when(vehicleService.createVehicle(any(CreateVehicleRequest.class))).thenReturn(vehicle);
 
-        ResponseEntity<Vehicle> response = vehicleController.getVehicleById(99L);
-
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertNull(response.getBody());
-        verify(vehicleService, times(1)).getVehicleById(99L);
+        mockMvc.perform(post("/api/vehicles")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.licensePlate").value("V-101-BB"));
     }
 
     @Test
-    @DisplayName("API-V04: PATCH /api/vehicles/{id}/status geeft 200 OK bij succes")
-    void updateVehicleStatus_Returns200_WhenValid() {
-        Vehicle updated = new Vehicle(1L, "V-101-BB", "Mercedes-Benz eVito", VehicleStatus.MAINTENANCE, 60, 240, 101L);
+    @DisplayName("API-V05: POST /api/vehicles geeft 400 bij ongeldige invoer")
+    void createVehicle_BadRequest() throws Exception {
+        CreateVehicleRequest request = new CreateVehicleRequest("V-101-BB", "Mercedes-Benz eVito", VehicleStatus.AVAILABLE, 0, -10, null);
+        when(vehicleService.createVehicle(any(CreateVehicleRequest.class)))
+                .thenThrow(new IllegalArgumentException("Battery capacity and range must be positive numbers"));
+
+        mockMvc.perform(post("/api/vehicles")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("API-V06: PATCH /api/vehicles/{id}/status geeft 200 bij statusupdate")
+    void updateStatus_Success() throws Exception {
         UpdateVehicleStatusRequest request = new UpdateVehicleStatusRequest(VehicleStatus.MAINTENANCE);
-        when(vehicleService.updateVehicleStatus(1L, VehicleStatus.MAINTENANCE)).thenReturn(updated);
+        Vehicle updated = new Vehicle(1L, "V-101-BB", "Mercedes-Benz eVito", VehicleStatus.MAINTENANCE, 60, 240, null);
+        when(vehicleService.updateVehicleStatus(eq(1L), eq(VehicleStatus.MAINTENANCE))).thenReturn(updated);
 
-        ResponseEntity<?> response = vehicleController.updateVehicleStatus(1L, request);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(updated, response.getBody());
-        verify(vehicleService, times(1)).updateVehicleStatus(1L, VehicleStatus.MAINTENANCE);
-    }
-
-    @Test
-    @DisplayName("API-V05: PATCH /api/vehicles/{id}/status geeft 400 BAD REQUEST bij fout")
-    void updateVehicleStatus_Returns400_WhenException() {
-        UpdateVehicleStatusRequest request = new UpdateVehicleStatusRequest(null);
-        when(vehicleService.updateVehicleStatus(1L, null)).thenThrow(new IllegalArgumentException("Status cannot be null"));
-
-        ResponseEntity<?> response = vehicleController.updateVehicleStatus(1L, request);
-
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertEquals("Status cannot be null", response.getBody());
-        verify(vehicleService, times(1)).updateVehicleStatus(1L, null);
+        mockMvc.perform(patch("/api/vehicles/1/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("MAINTENANCE"));
     }
 }
