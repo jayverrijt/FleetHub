@@ -48,12 +48,14 @@ class StopServiceTest {
     @Test
     @DisplayName("UT-02: Stopstatus succesvol bijwerken naar DELIVERED")
     void updateStopStatus_Success() {
+        DeliveryStop deliveredStop = new DeliveryStop(1L, "ORD-1001", "Jan de Vries", "Kerkstraat 12", "Eindhoven", 1, StopStatus.DELIVERED, 101L);
         when(stopRepository.findById(1L)).thenReturn(Optional.of(sampleStop));
-        when(stopRepository.updateStatus(1L, StopStatus.DELIVERED)).thenReturn(sampleStop);
+        when(stopRepository.updateStatus(1L, StopStatus.DELIVERED)).thenReturn(deliveredStop);
 
         DeliveryStop result = stopService.updateStopStatus(1L, StopStatus.DELIVERED);
 
         assertNotNull(result);
+        assertEquals(StopStatus.DELIVERED, result.getStatus());
         verify(stopRepository, times(1)).findById(1L);
         verify(stopRepository, times(1)).updateStatus(1L, StopStatus.DELIVERED);
     }
@@ -68,6 +70,7 @@ class StopServiceTest {
 
         assertEquals("Status is required", ex.getMessage());
         verify(stopRepository, never()).findById(anyLong());
+        verify(stopRepository, never()).updateStatus(anyLong(), any());
     }
 
     @Test
@@ -80,11 +83,12 @@ class StopServiceTest {
 
         assertEquals("Cannot reset stop status back to PENDING", ex.getMessage());
         verify(stopRepository, never()).findById(anyLong());
+        verify(stopRepository, never()).updateStatus(anyLong(), any());
     }
 
     @Test
-    @DisplayName("UT-05: Exceptie doorduwen wanneer stopRepository faalt (ID niet gevonden)")
-    void updateStopStatus_ThrowsException_WhenRepositoryFails() {
+    @DisplayName("UT-05: Exceptie doorduwen wanneer stop niet gevonden wordt")
+    void updateStopStatus_ThrowsException_WhenStopNotFound() {
         when(stopRepository.findById(999L)).thenReturn(Optional.empty());
 
         IllegalArgumentException ex = assertThrows(
