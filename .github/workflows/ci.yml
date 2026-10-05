@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Build & Verify (Unit Tests + JaCoCo)
+    name: Build & Verify Pipeline
     runs-on: ubuntu-latest
 
     defaults:
@@ -29,8 +29,18 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
 
-      - name: Run Build, Tests and Package JAR
-        run: ./gradlew clean build --no-daemon
+      - name: 1. Clean Project
+        run: ./gradlew clean --no-daemon
+
+      - name: 2. Compile Application and Test Code
+        run: ./gradlew compileJava compileTestJava --no-daemon
+
+      - name: 3. Run Tests & Coverage Verification (JaCoCo)
+        run: ./gradlew check --no-daemon
+
+      - name: 4. Package Executable JAR
+        if: success()
+        run: ./gradlew bootJar -x test --no-daemon
 
       - name: Upload JaCoCo Coverage Report
         if: always()
@@ -40,6 +50,7 @@ jobs:
           path: FleetHub_Backend/build/reports/jacoco/test/html/
 
       - name: Upload Built JAR Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: spring-boot-jar
