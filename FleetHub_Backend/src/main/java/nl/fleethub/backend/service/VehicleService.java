@@ -5,10 +5,12 @@ import nl.fleethub.backend.model.Vehicle;
 import nl.fleethub.backend.model.VehicleStatus;
 import nl.fleethub.backend.repository.interfaces.VehicleRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
+@Transactional
 public class VehicleService {
 
     private final VehicleRepository vehicleRepository;
@@ -17,15 +19,18 @@ public class VehicleService {
         this.vehicleRepository = vehicleRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<Vehicle> getAllVehicles() {
         return vehicleRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public Vehicle getVehicleById(Long id) {
         return vehicleRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Vehicle with id " + id + " not found"));
     }
 
+    @Transactional(readOnly = true)
     public Vehicle getVehicleByDriverId(Long driverId) {
         return vehicleRepository.findByDriverId(driverId)
                 .orElseThrow(() -> new IllegalArgumentException("No vehicle assigned to driver " + driverId));

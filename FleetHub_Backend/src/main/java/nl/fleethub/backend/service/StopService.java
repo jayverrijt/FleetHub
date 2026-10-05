@@ -4,10 +4,12 @@ import nl.fleethub.backend.model.DeliveryStop;
 import nl.fleethub.backend.model.StopStatus;
 import nl.fleethub.backend.repository.interfaces.StopRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
+@Transactional
 public class StopService {
 
     private final StopRepository stopRepository;
@@ -16,6 +18,7 @@ public class StopService {
         this.stopRepository = stopRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<DeliveryStop> getActiveStopsForDriver(Long driverId) {
         return stopRepository.findActiveByDriverId(driverId);
     }
@@ -27,6 +30,11 @@ public class StopService {
         if (newStatus == StopStatus.PENDING) {
             throw new IllegalArgumentException("Cannot reset stop status back to PENDING");
         }
+
+        // Valideer of het record bestaat, anders gooi de exception voor de 404 handler
+        stopRepository.findById(stopId)
+                .orElseThrow(() -> new IllegalArgumentException("Stop with id " + stopId + " not found"));
+
         return stopRepository.updateStatus(stopId, newStatus);
     }
 }

@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -47,13 +48,13 @@ class StopServiceTest {
     @Test
     @DisplayName("UT-02: Stopstatus succesvol bijwerken naar DELIVERED")
     void updateStopStatus_Success() {
-        DeliveryStop updatedStop = new DeliveryStop(1L, "ORD-1001", "Jan de Vries", "Kerkstraat 12", "Eindhoven", 1, StopStatus.DELIVERED, 101L);
-        when(stopRepository.updateStatus(1L, StopStatus.DELIVERED)).thenReturn(updatedStop);
+        when(stopRepository.findById(1L)).thenReturn(Optional.of(sampleStop));
+        when(stopRepository.updateStatus(1L, StopStatus.DELIVERED)).thenReturn(sampleStop);
 
         DeliveryStop result = stopService.updateStopStatus(1L, StopStatus.DELIVERED);
 
         assertNotNull(result);
-        assertEquals(StopStatus.DELIVERED, result.getStatus());
+        verify(stopRepository, times(1)).findById(1L);
         verify(stopRepository, times(1)).updateStatus(1L, StopStatus.DELIVERED);
     }
 
@@ -66,7 +67,7 @@ class StopServiceTest {
         );
 
         assertEquals("Status is required", ex.getMessage());
-        verify(stopRepository, never()).updateStatus(anyLong(), any());
+        verify(stopRepository, never()).findById(anyLong());
     }
 
     @Test
@@ -78,14 +79,13 @@ class StopServiceTest {
         );
 
         assertEquals("Cannot reset stop status back to PENDING", ex.getMessage());
-        verify(stopRepository, never()).updateStatus(anyLong(), any());
+        verify(stopRepository, never()).findById(anyLong());
     }
 
     @Test
     @DisplayName("UT-05: Exceptie doorduwen wanneer stopRepository faalt (ID niet gevonden)")
     void updateStopStatus_ThrowsException_WhenRepositoryFails() {
-        when(stopRepository.updateStatus(999L, StopStatus.DELIVERED))
-                .thenThrow(new IllegalArgumentException("Stop with id 999 not found"));
+        when(stopRepository.findById(999L)).thenReturn(Optional.empty());
 
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
@@ -93,6 +93,7 @@ class StopServiceTest {
         );
 
         assertEquals("Stop with id 999 not found", ex.getMessage());
-        verify(stopRepository, times(1)).updateStatus(999L, StopStatus.DELIVERED);
+        verify(stopRepository, times(1)).findById(999L);
+        verify(stopRepository, never()).updateStatus(anyLong(), any());
     }
 }

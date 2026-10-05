@@ -12,6 +12,7 @@ import java.util.List;
 @RequestMapping("/api")
 @CrossOrigin(origins = "*")
 public class StopController {
+
     private final StopService stopService;
 
     public StopController(StopService stopService) {
@@ -21,19 +22,16 @@ public class StopController {
     @GetMapping("/driver/routes/active")
     public ResponseEntity<List<DeliveryStop>> getActiveDriverRoute() {
         Long dummyDriverId = 101L;
-        List<DeliveryStop> stops = stopService.getActiveStopsForDriver(dummyDriverId);
-        return ResponseEntity.ok(stops);
+        List<DeliveryStop> activeStops = stopService.getActiveStopsForDriver(dummyDriverId);
+        return ResponseEntity.ok(activeStops);
     }
 
     @PatchMapping("/stops/{id}/status")
-    public ResponseEntity<?> updateStopStatus(
+    public ResponseEntity<DeliveryStop> updateStopStatus(
             @PathVariable("id") Long id,
             @RequestBody UpdateStopStatusRequest request) {
-        try {
-            DeliveryStop updatedStop = stopService.updateStopStatus(id, request.getStatus());
-            return ResponseEntity.ok(updatedStop);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+        // Laat de exception direct doorvloeien naar de GlobalExceptionHandler
+        DeliveryStop updatedStop = stopService.updateStopStatus(id, request.getStatus());
+        return ResponseEntity.ok(updatedStop);
     }
 }
