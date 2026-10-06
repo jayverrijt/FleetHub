@@ -100,4 +100,34 @@ class StopServiceTest {
         verify(stopRepository, times(1)).findById(999L);
         verify(stopRepository, never()).updateStatus(anyLong(), any());
     }
+
+    @Test
+    @DisplayName("UT-06: Lege lijst retourneren wanneer chauffeur geen actieve ritten heeft")
+    void getActiveStopsForDriver_EmptyRoute_ReturnsEmptyList() {
+        when(stopRepository.findActiveByDriverId(101L)).thenReturn(List.of());
+
+        List<DeliveryStop> result = stopService.getActiveStopsForDriver(101L);
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(stopRepository, times(1)).findActiveByDriverId(101L);
+    }
+
+    @Test
+    @DisplayName("UT-07: Foutmelding gooien bij ongeldig driverId (null of ongeldig getal)")
+    void getActiveStopsForDriver_ThrowsException_WhenDriverIdInvalid() {
+        IllegalArgumentException exNull = assertThrows(
+                IllegalArgumentException.class,
+                () -> stopService.getActiveStopsForDriver(null)
+        );
+        assertEquals("Driver id must be a positive number", exNull.getMessage());
+
+        IllegalArgumentException exNegative = assertThrows(
+                IllegalArgumentException.class,
+                () -> stopService.getActiveStopsForDriver(-5L)
+        );
+        assertEquals("Driver id must be a positive number", exNegative.getMessage());
+
+        verify(stopRepository, never()).findActiveByDriverId(anyLong());
+    }
 }
