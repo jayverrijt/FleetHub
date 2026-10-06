@@ -118,11 +118,14 @@ jobs:
           tags: ghcr.io/jayverrijt/fleethub-backend:${{ steps.env-targets.outputs.DOCKER_TAG }}
 
       - name: Connect to Fontys Netlab OpenVPN
-        uses: kota65535/github-action-openvpn@v2
-        with:
-          config: ${{ secrets.OPENVPN_CONFIG }}
-          username: ${{ secrets.OPENVPN_USER }}
-          password: ${{ secrets.OPENVPN_PASSWORD }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y openvpn
+          echo "${{ secrets.OPENVPN_USER }}" > vpn-auth.txt
+          echo "${{ secrets.OPENVPN_PASSWORD }}" >> vpn-auth.txt
+          echo "${{ secrets.OPENVPN_CONFIG }}" > client.ovpn
+          sudo openvpn --config client.ovpn --auth-user-pass vpn-auth.txt --daemon
+          sleep 10
+          rm -f vpn-auth.txt
 
       - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1.0.3
