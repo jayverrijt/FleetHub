@@ -117,7 +117,15 @@ jobs:
           push: true
           tags: ghcr.io/jayverrijt/fleethub-backend:${{ steps.env-targets.outputs.DOCKER_TAG }}
 
-      - uses: appleboy/ssh-action@v1.0.3
+      - name: Connect to Fontys Netlab OpenVPN
+        uses: kota65535/github-action-openvpn@v2
+        with:
+          config: ${{ secrets.OPENVPN_CONFIG }}
+          username: ${{ secrets.OPENVPN_USER }}
+          password: ${{ secrets.OPENVPN_PASSWORD }}
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
