@@ -7,6 +7,7 @@ import nl.fleethub.backend.repository.jpa.SpringDataStopRepository;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,32 +15,34 @@ import java.util.Optional;
 @Primary
 public class StopDatabaseRepository implements StopRepository {
 
-    private final SpringDataStopRepository jpaRepository;
+    private final SpringDataStopRepository springDataStopRepository;
 
-    public StopDatabaseRepository(SpringDataStopRepository jpaRepository) {
-        this.jpaRepository = jpaRepository;
+    public StopDatabaseRepository(SpringDataStopRepository springDataStopRepository) {
+        this.springDataStopRepository = springDataStopRepository;
     }
 
     @Override
     public List<DeliveryStop> findActiveByDriverId(Long driverId) {
-        return jpaRepository.findByDriverIdOrderBySequenceOrderAsc(driverId);
+        return springDataStopRepository.findByDriverIdOrderBySequenceOrderAsc(driverId);
     }
 
     @Override
     public Optional<DeliveryStop> findById(Long id) {
-        return jpaRepository.findById(id);
+        return springDataStopRepository.findById(id);
     }
 
     @Override
     public DeliveryStop save(DeliveryStop stop) {
-        return jpaRepository.save(stop);
+        return springDataStopRepository.save(stop);
     }
 
     @Override
     public DeliveryStop updateStatus(Long id, StopStatus newStatus) {
-        DeliveryStop stop = jpaRepository.findById(id)
+        DeliveryStop stop = springDataStopRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Stop with id " + id + " not found"));
+
         stop.setStatus(newStatus);
-        return jpaRepository.save(stop);
+        stop.setCompletedAt(LocalDateTime.now());
+        return springDataStopRepository.save(stop);
     }
 }

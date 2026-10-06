@@ -6,6 +6,7 @@ import nl.fleethub.backend.repository.interfaces.StopRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
@@ -37,8 +38,23 @@ public class StopService {
             throw new IllegalArgumentException("Cannot reset stop status back to PENDING");
         }
 
-        stopRepository.findById(stopId)
+        // Valideer of de transitie naar een terminale status gaat
+        if (newStatus != StopStatus.DELIVERED && newStatus != StopStatus.FAILED_NOT_HOME) {
+            throw new IllegalArgumentException("Invalid status transition: " + newStatus);
+        }
+
+        // Valideer of stop bestaat
+        DeliveryStop stop = stopRepository.findById(stopId)
                 .orElseThrow(() -> new IllegalArgumentException("Stop with id " + stopId + " not found"));
+
+        // Voorkom mutatie als de stop al afgerond is
+        if (stop.getStatus() == StopStatus.DELIVERED || stop.getStatus() == StopStatus.FAILED_NOT_HOME) {
+            throw new IllegalStateException("Stop has already been finalized");
+        }
+
+        // Registreer status en timestamp
+        stop.setStatus(newStatus);
+        stop.setCompletedAt(LocalDateTime.now());
 
         return stopRepository.updateStatus(stopId, newStatus);
     }
