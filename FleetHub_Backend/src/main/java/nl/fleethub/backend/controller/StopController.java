@@ -1,5 +1,6 @@
 package nl.fleethub.backend.controller;
 
+import jakarta.validation.Valid;
 import nl.fleethub.backend.dto.UpdateStopStatusRequest;
 import nl.fleethub.backend.model.DeliveryStop;
 import nl.fleethub.backend.service.StopService;
@@ -29,8 +30,7 @@ public class StopController {
     @PatchMapping("/stops/{id}/status")
     public ResponseEntity<DeliveryStop> updateStopStatus(
             @PathVariable("id") Long id,
-            @RequestBody UpdateStopStatusRequest request) {
-        // Laat de exception direct doorvloeien naar de GlobalExceptionHandler
+            @Valid @RequestBody UpdateStopStatusRequest request) {
         DeliveryStop updatedStop = stopService.updateStopStatus(id, request.getStatus());
         return ResponseEntity.ok(updatedStop);
     }

@@ -65,7 +65,7 @@ class StopControllerTest {
     }
 
     @Test
-    @DisplayName("API-03: PATCH /api/stops/{id}/status geeft HTTP 400 bij ongeldige invoer")
+    @DisplayName("API-03: PATCH /api/stops/{id}/status geeft HTTP 400 bij ongeldige servicestatus")
     void updateStopStatus_Failure_Returns400() throws Exception {
         when(stopService.updateStopStatus(1L, StopStatus.PENDING))
                 .thenThrow(new IllegalArgumentException("Cannot reset stop status back to PENDING"));
@@ -76,9 +76,21 @@ class StopControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().string("Cannot reset stop status back to PENDING"));
+                .andExpect(jsonPath("$.message").value("Cannot reset stop status back to PENDING"));
 
         verify(stopService, times(1)).updateStopStatus(1L, StopStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("API-03b: PATCH /api/stops/{id}/status geeft HTTP 400 bij ontbrekende status (@Valid)")
+    void updateStopStatus_MissingStatus_Returns400() throws Exception {
+        mockMvc.perform(patch("/api/stops/1/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\": null}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value("Status is required"));
+
+        verify(stopService, never()).updateStopStatus(anyLong(), any());
     }
 
     @Test
@@ -93,7 +105,7 @@ class StopControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
-                .andExpect(content().string("Stop with id 999 not found"));
+                .andExpect(jsonPath("$.message").value("Stop with id 999 not found"));
 
         verify(stopService, times(1)).updateStopStatus(999L, StopStatus.DELIVERED);
     }

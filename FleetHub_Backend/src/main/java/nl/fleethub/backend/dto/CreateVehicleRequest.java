@@ -1,14 +1,29 @@
 package nl.fleethub.backend.dto;
 
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import nl.fleethub.backend.model.VehicleStatus;
 
 public class CreateVehicleRequest {
+
+    @NotBlank(message = "License plate is required")
     private String licensePlate;
+
+    @NotBlank(message = "Vehicle model is required")
     private String model;
+
+    @NotNull(message = "Vehicle status is required")
     private VehicleStatus status;
+
+    @Positive(message = "Battery capacity must be greater than 0")
     private int batteryCapacityKwh;
+
+    @Min(value = 0, message = "Current range cannot be negative")
     private int currentRangeKm;
-    private Long assignedDriverId;
+
+    private Long assignedDriverId; // Kan null zijn voor het geval er geen chauffeur assigned is.
 
     public CreateVehicleRequest() {}
 

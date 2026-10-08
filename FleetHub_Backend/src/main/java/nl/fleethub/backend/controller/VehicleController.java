@@ -1,8 +1,11 @@
 package nl.fleethub.backend.controller;
 
+import jakarta.validation.Valid;
+import nl.fleethub.backend.dto.CreateVehicleRequest;
 import nl.fleethub.backend.dto.UpdateVehicleStatusRequest;
 import nl.fleethub.backend.model.Vehicle;
 import nl.fleethub.backend.service.VehicleService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,26 +38,19 @@ public class VehicleController {
         }
     }
 
-    // PATCH /api/vehicles/{id}/status - Status wijzigen (bijv. naar MAINTENANCE)
     @PatchMapping("/{id}/status")
-    public ResponseEntity<?> updateVehicleStatus(
+    public ResponseEntity<Vehicle> updateVehicleStatus(
             @PathVariable("id") Long id,
-            @RequestBody UpdateVehicleStatusRequest request) {
-        try {
-            Vehicle updated = vehicleService.updateVehicleStatus(id, request.getStatus());
-            return ResponseEntity.ok(updated);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+            @Valid @RequestBody UpdateVehicleStatusRequest request) { // <-- @Valid toegevoegd
+        Vehicle updated = vehicleService.updateVehicleStatus(id, request.getStatus());
+        return ResponseEntity.ok(updated);
     }
 
     @PostMapping
-    public ResponseEntity<?> createVehicle(@RequestBody nl.fleethub.backend.dto.CreateVehicleRequest request) {
-        try {
-            Vehicle created = vehicleService.createVehicle(request);
-            return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(created);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public ResponseEntity<Vehicle> createVehicle(
+            @Valid @RequestBody CreateVehicleRequest request)
+    {
+        Vehicle created = vehicleService.createVehicle(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 }
