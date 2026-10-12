@@ -27,6 +27,17 @@ public class StopDatabaseRepository implements StopRepository {
     }
 
     @Override
+    public List<DeliveryStop> findByRouteId(Long routeId) {
+        // Geeft direct de stops van de route terug, netjes op volgorde
+        return springDataStopRepository.findByRouteIdOrderBySequenceOrderAsc(routeId);
+    }
+
+    @Override
+    public List<DeliveryStop> findByRouteIdOrderBySequenceOrderAsc(Long routeId) {
+        return springDataStopRepository.findByRouteIdOrderBySequenceOrderAsc(routeId);
+    }
+
+    @Override
     public Optional<DeliveryStop> findById(Long id) {
         return springDataStopRepository.findById(id);
     }

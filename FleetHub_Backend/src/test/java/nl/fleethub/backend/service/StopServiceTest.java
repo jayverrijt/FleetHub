@@ -1,5 +1,6 @@
 package nl.fleethub.backend.service;
 
+import nl.fleethub.backend.dto.CreateStopRequest;
 import nl.fleethub.backend.model.DeliveryStop;
 import nl.fleethub.backend.model.StopStatus;
 import nl.fleethub.backend.repository.interfaces.StopRepository;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -23,6 +25,9 @@ class StopServiceTest {
 
     @Mock
     private StopRepository stopRepository;
+
+    @Mock
+    private GeocodingService geocodingService;
 
     @InjectMocks
     private StopService stopService;
@@ -33,8 +38,6 @@ class StopServiceTest {
     void setUp() {
         sampleStop = new DeliveryStop(1L, "ORD-1001", "Jan de Vries", "Kerkstraat 12", "Eindhoven", 1, StopStatus.PENDING, 101L);
     }
-
-    // --- US5a: Route inspectie tests ---
 
     @Test
     @DisplayName("UT-01: Actieve stops ophalen voor chauffeur")
@@ -77,8 +80,6 @@ class StopServiceTest {
 
         verify(stopRepository, never()).findActiveByDriverId(anyLong());
     }
-
-    // --- US5b: Status transition & timestamp tests ---
 
     @Test
     @DisplayName("UT-04: Stopstatus succesvol bijwerken naar DELIVERED inclusief timestamp")
@@ -126,7 +127,7 @@ class StopServiceTest {
     }
 
     @Test
-    @DisplayName("UT-07: Foutmelding gooien als geprobeerd wordt te resetten naar PENDING")
+    @DisplayName("UT-07: Foutmelding gooien als status PENDING is")
     void updateStopStatus_ThrowsException_WhenStatusIsPending() {
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
@@ -183,5 +184,36 @@ class StopServiceTest {
         assertEquals("Stop with id 999 not found", ex.getMessage());
         verify(stopRepository, times(1)).findById(999L);
         verify(stopRepository, never()).updateStatus(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("UT-11: createStop - Succesvol nieuwe stop opslaan inclusief geocodering")
+    void createStop_Success() {
+        CreateStopRequest request = new CreateStopRequest();
+        request.setRouteId(104L);
+        request.setDriverId(1L);
+        request.setOrderNumber("ORD-9999");
+        request.setRecipientName("Test Klant");
+        request.setSequenceOrder(9);
+        request.setAddress("Kerkstraat 1");
+        request.setCity("Eindhoven");
+
+        when(geocodingService.geocode("Kerkstraat 1", "Eindhoven")).thenReturn(new double[]{51.44, 5.46});
+
+        DeliveryStop expectedSavedStop = new DeliveryStop(
+                10L, 104L, 1L, "ORD-9999", "Test Klant",
+                9, "Kerkstraat 1", "Eindhoven", 51.44, 5.46,
+                StopStatus.PENDING, null, null
+        );
+
+        when(stopRepository.save(any(DeliveryStop.class))).thenReturn(expectedSavedStop);
+
+        DeliveryStop created = stopService.createStop(request);
+
+        assertNotNull(created);
+        assertEquals("ORD-9999", created.getOrderNumber());
+        assertEquals(51.44, created.getLatitude());
+        verify(geocodingService, times(1)).geocode("Kerkstraat 1", "Eindhoven");
+        verify(stopRepository, times(1)).save(any(DeliveryStop.class));
     }
 }

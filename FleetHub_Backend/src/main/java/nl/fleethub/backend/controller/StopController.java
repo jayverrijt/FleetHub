@@ -1,16 +1,16 @@
 package nl.fleethub.backend.controller;
 
 import jakarta.validation.Valid;
+import nl.fleethub.backend.dto.CreateStopRequest;
 import nl.fleethub.backend.dto.UpdateStopStatusRequest;
 import nl.fleethub.backend.model.DeliveryStop;
 import nl.fleethub.backend.service.StopService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/stops")
 @CrossOrigin(origins = "*")
 public class StopController {
 
@@ -20,14 +20,13 @@ public class StopController {
         this.stopService = stopService;
     }
 
-    @GetMapping("/driver/routes/active")
-    public ResponseEntity<List<DeliveryStop>> getActiveDriverRoute() {
-        Long dummyDriverId = 101L;
-        List<DeliveryStop> activeStops = stopService.getActiveStopsForDriver(dummyDriverId);
-        return ResponseEntity.ok(activeStops);
+    @PostMapping
+    public ResponseEntity<DeliveryStop> createStop(@Valid @RequestBody CreateStopRequest request) {
+        DeliveryStop createdStop = stopService.createStop(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdStop);
     }
 
-    @PatchMapping("/stops/{id}/status")
+    @PatchMapping("/{id}/status")
     public ResponseEntity<DeliveryStop> updateStopStatus(
             @PathVariable("id") Long id,
             @Valid @RequestBody UpdateStopStatusRequest request) {

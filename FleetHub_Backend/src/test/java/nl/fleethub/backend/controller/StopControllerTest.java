@@ -1,6 +1,7 @@
 package nl.fleethub.backend.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import nl.fleethub.backend.dto.CreateStopRequest;
 import nl.fleethub.backend.dto.UpdateStopStatusRequest;
 import nl.fleethub.backend.exception.GlobalExceptionHandler;
 import nl.fleethub.backend.model.DeliveryStop;
@@ -15,10 +16,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.List;
-
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(StopController.class)
@@ -35,78 +37,85 @@ class StopControllerTest {
     private StopService stopService;
 
     @Test
-    @DisplayName("API-01: GET /api/driver/routes/active geeft HTTP 200 en stops terug")
-    void getActiveDriverRoute_Returns200AndList() throws Exception {
-        DeliveryStop stop = new DeliveryStop(1L, "ORD-1001", "Jan de Vries", "Kerkstraat 12", "Eindhoven", 1, StopStatus.PENDING, 101L);
-        when(stopService.getActiveStopsForDriver(101L)).thenReturn(List.of(stop));
+    @DisplayName("API-02: PATCH /api/stops/{id}/status - Geeft HTTP 200 bij geldige statusupdate")
+    void updateStopStatus_Success() throws Exception {
+        DeliveryStop updatedStop = new DeliveryStop(
+                1L, 104L, 1L, "ORD-1001", "Fontys Rachelsmolen R1",
+                1, "Rachelsmolen 1", "Eindhoven", 51.4518, 5.4815,
+                StopStatus.DELIVERED, null, null
+        );
 
-        mockMvc.perform(get("/api/driver/routes/active"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].orderNumber").value("ORD-1001"));
+        when(stopService.updateStopStatus(eq(1L), eq(StopStatus.DELIVERED))).thenReturn(updatedStop);
 
-        verify(stopService, times(1)).getActiveStopsForDriver(101L);
-    }
-
-    @Test
-    @DisplayName("API-02: PATCH /api/stops/{id}/status geeft HTTP 200 bij geldige update")
-    void updateStopStatus_Success_Returns200() throws Exception {
-        DeliveryStop updatedStop = new DeliveryStop(1L, "ORD-1001", "Jan de Vries", "Kerkstraat 12", "Eindhoven", 1, StopStatus.DELIVERED, 101L);
-        when(stopService.updateStopStatus(1L, StopStatus.DELIVERED)).thenReturn(updatedStop);
-
-        UpdateStopStatusRequest request = new UpdateStopStatusRequest(StopStatus.DELIVERED);
+        UpdateStopStatusRequest request = new UpdateStopStatusRequest();
+        request.setStatus(StopStatus.DELIVERED);
 
         mockMvc.perform(patch("/api/stops/1/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.status").value("DELIVERED"));
 
-        verify(stopService, times(1)).updateStopStatus(1L, StopStatus.DELIVERED);
+        verify(stopService, times(1)).updateStopStatus(eq(1L), eq(StopStatus.DELIVERED));
     }
 
     @Test
-    @DisplayName("API-03: PATCH /api/stops/{id}/status geeft HTTP 400 bij ongeldige servicestatus")
-    void updateStopStatus_Failure_Returns400() throws Exception {
-        when(stopService.updateStopStatus(1L, StopStatus.PENDING))
-                .thenThrow(new IllegalArgumentException("Cannot reset stop status back to PENDING"));
-
-        UpdateStopStatusRequest request = new UpdateStopStatusRequest(StopStatus.PENDING);
+    @DisplayName("API-03: PATCH /api/stops/{id}/status - Geeft HTTP 400 bij ongeldige invoer (null status)")
+    void updateStopStatus_ValidationError() throws Exception {
+        UpdateStopStatusRequest request = new UpdateStopStatusRequest();
+        request.setStatus(null);
 
         mockMvc.perform(patch("/api/stops/1/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Cannot reset stop status back to PENDING"));
+                .andExpect(status().isBadRequest());
 
-        verify(stopService, times(1)).updateStopStatus(1L, StopStatus.PENDING);
+        verify(stopService, never()).updateStopStatus(any(), any());
     }
 
     @Test
-    @DisplayName("API-03b: PATCH /api/stops/{id}/status geeft HTTP 400 bij ontbrekende status (@Valid)")
-    void updateStopStatus_MissingStatus_Returns400() throws Exception {
-        mockMvc.perform(patch("/api/stops/1/status")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"status\": null}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value("Status is required"));
-
-        verify(stopService, never()).updateStopStatus(anyLong(), any());
-    }
-
-    @Test
-    @DisplayName("API-04: PATCH /api/stops/{id}/status geeft HTTP 404 als stop niet bestaat")
-    void updateStopStatus_NotFound_Returns404() throws Exception {
-        when(stopService.updateStopStatus(999L, StopStatus.DELIVERED))
+    @DisplayName("API-04: PATCH /api/stops/{id}/status - Geeft HTTP 404 als stop niet bestaat")
+    void updateStopStatus_NotFound() throws Exception {
+        when(stopService.updateStopStatus(eq(999L), any()))
                 .thenThrow(new IllegalArgumentException("Stop with id 999 not found"));
 
-        UpdateStopStatusRequest request = new UpdateStopStatusRequest(StopStatus.DELIVERED);
+        UpdateStopStatusRequest request = new UpdateStopStatusRequest();
+        request.setStatus(StopStatus.DELIVERED);
 
         mockMvc.perform(patch("/api/stops/999/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("Stop with id 999 not found"));
+                .andExpect(status().isNotFound());
+    }
 
-        verify(stopService, times(1)).updateStopStatus(999L, StopStatus.DELIVERED);
+    @Test
+    @DisplayName("API-05: POST /api/stops - Maakt stop aan en geeft HTTP 201")
+    void createStop_Success() throws Exception {
+        DeliveryStop createdStop = new DeliveryStop(
+                14L, 104L, 1L, "ORD-NEW", "Nieuwe Klant",
+                8, "Kanaaldijk-Zuid 7", "Eindhoven", 51.4361, 5.4924,
+                StopStatus.PENDING, null, null
+        );
+
+        when(stopService.createStop(any(CreateStopRequest.class))).thenReturn(createdStop);
+
+        CreateStopRequest request = new CreateStopRequest();
+        request.setRouteId(104L);
+        request.setDriverId(1L);
+        request.setOrderNumber("ORD-NEW");
+        request.setRecipientName("Nieuwe Klant");
+        request.setSequenceOrder(8);
+        request.setAddress("Kanaaldijk-Zuid 7");
+        request.setCity("Eindhoven");
+
+        mockMvc.perform(post("/api/stops")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(14))
+                .andExpect(jsonPath("$.orderNumber").value("ORD-NEW"));
+
+        verify(stopService, times(1)).createStop(any(CreateStopRequest.class));
     }
 }

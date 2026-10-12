@@ -22,9 +22,9 @@ class StopRepositoryIntegrationTest {
     @Test
     @DisplayName("IT-01: Vind en sorteer actieve stops chronologisch per chauffeur")
     void findByDriverIdOrderBySequenceOrderAsc_ReturnsSortedStops() {
-        DeliveryStop stop1 = new DeliveryStop(null, "ORD-1", "Klant A", "Adres 1", "Eindhoven", 2, StopStatus.PENDING, 101L);
-        DeliveryStop stop2 = new DeliveryStop(null, "ORD-2", "Klant B", "Adres 2", "Eindhoven", 1, StopStatus.PENDING, 101L);
-        DeliveryStop otherDriverStop = new DeliveryStop(null, "ORD-3", "Klant C", "Adres 3", "Eindhoven", 1, StopStatus.PENDING, 102L);
+        DeliveryStop stop1 = new DeliveryStop(null, 104L, 101L, "ORD-1", "Klant A", 2, "Adres 1", "Eindhoven", 51.44, 5.46, StopStatus.PENDING, null, null);
+        DeliveryStop stop2 = new DeliveryStop(null, 104L, 101L, "ORD-2", "Klant B", 1, "Adres 2", "Eindhoven", 51.45, 5.47, StopStatus.PENDING, null, null);
+        DeliveryStop otherDriverStop = new DeliveryStop(null, 105L, 102L, "ORD-3", "Klant C", 1, "Adres 3", "Tilburg", 51.55, 5.08, StopStatus.PENDING, null, null);
 
         stopRepository.saveAll(List.of(stop1, stop2, otherDriverStop));
 
@@ -40,7 +40,7 @@ class StopRepositoryIntegrationTest {
     @Test
     @DisplayName("IT-02: Werk de status van een opgeslagen stop persistent bij")
     void updateStopStatus_PersistsInDatabase() {
-        DeliveryStop stop = new DeliveryStop(null, "ORD-99", "Klant X", "Adres X", "Eindhoven", 1, StopStatus.PENDING, 101L);
+        DeliveryStop stop = new DeliveryStop(null, 104L, 101L, "ORD-99", "Klant X", 1, "Adres X", "Eindhoven", 51.44, 5.46, StopStatus.PENDING, null, null);
         DeliveryStop savedStop = stopRepository.save(stop);
 
         savedStop.setStatus(StopStatus.DELIVERED);
@@ -49,5 +49,23 @@ class StopRepositoryIntegrationTest {
         Optional<DeliveryStop> retrieved = stopRepository.findById(savedStop.getId());
         assertTrue(retrieved.isPresent());
         assertEquals(StopStatus.DELIVERED, retrieved.get().getStatus());
+    }
+
+    @Test
+    @DisplayName("IT-03: Vind en sorteer stops chronologisch per routeId")
+    void findByRouteIdOrderBySequenceOrderAsc_ReturnsSortedRouteStops() {
+        DeliveryStop stopRoute104B = new DeliveryStop(null, 104L, 1L, "ORD-104-2", "Klant 2", 2, "Adres 2", "Eindhoven", 51.44, 5.46, StopStatus.PENDING, null, null);
+        DeliveryStop stopRoute104A = new DeliveryStop(null, 104L, 1L, "ORD-104-1", "Klant 1", 1, "Adres 1", "Eindhoven", 51.45, 5.47, StopStatus.PENDING, null, null);
+        DeliveryStop stopRoute105 = new DeliveryStop(null, 105L, 2L, "ORD-105-1", "Klant 3", 1, "Adres 3", "Tilburg", 51.55, 5.08, StopStatus.PENDING, null, null);
+
+        stopRepository.saveAll(List.of(stopRoute104B, stopRoute104A, stopRoute105));
+
+        List<DeliveryStop> route104Stops = stopRepository.findByRouteIdOrderBySequenceOrderAsc(104L);
+
+        assertEquals(2, route104Stops.size());
+        assertEquals("ORD-104-1", route104Stops.getFirst().getOrderNumber());
+        assertEquals(1, route104Stops.getFirst().getSequenceOrder());
+        assertEquals("ORD-104-2", route104Stops.get(1).getOrderNumber());
+        assertEquals(2, route104Stops.get(1).getSequenceOrder());
     }
 }

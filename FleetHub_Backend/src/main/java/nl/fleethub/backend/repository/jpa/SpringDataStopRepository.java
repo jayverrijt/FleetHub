@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface SpringDataStopRepository extends JpaRepository<DeliveryStop, Long> {
     List<DeliveryStop> findByDriverIdOrderBySequenceOrderAsc(Long driverId);
+    List<DeliveryStop> findByRouteId(Long routeId);
+    List<DeliveryStop> findByRouteIdOrderBySequenceOrderAsc(Long routeId);
 }
