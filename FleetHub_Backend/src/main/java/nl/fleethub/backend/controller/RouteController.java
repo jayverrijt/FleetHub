@@ -44,7 +44,7 @@ public class RouteController {
     public ResponseEntity<Route> getRouteById(@PathVariable("routeId") Long routeId) {
         return routeRepository.findById(routeId)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new IllegalArgumentException("Route with id " + routeId + " not found"));
     }
 
     @GetMapping("/{routeId}/stops")

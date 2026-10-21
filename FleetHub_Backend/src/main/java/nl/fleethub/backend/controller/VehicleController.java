@@ -22,34 +22,28 @@ public class VehicleController {
         this.vehicleService = vehicleService;
     }
 
-    // GET /api/vehicles - Geeft alle voertuigen terug voor het dispatcher dashboard (FR4, FR5)
     @GetMapping
     public ResponseEntity<List<Vehicle>> getAllVehicles() {
         return ResponseEntity.ok(vehicleService.getAllVehicles());
     }
 
-    // GET /api/vehicles/{id} - Specifiek voertuig ophalen
     @GetMapping("/{id}")
     public ResponseEntity<Vehicle> getVehicleById(@PathVariable("id") Long id) {
-        try {
-            return ResponseEntity.ok(vehicleService.getVehicleById(id));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
-        }
+        // Exceptie vloeit door naar GlobalExceptionHandler -> levert HTTP 404 Not Found met JSON
+        return ResponseEntity.ok(vehicleService.getVehicleById(id));
     }
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<Vehicle> updateVehicleStatus(
             @PathVariable("id") Long id,
-            @Valid @RequestBody UpdateVehicleStatusRequest request) { // <-- @Valid toegevoegd
+            @Valid @RequestBody UpdateVehicleStatusRequest request) {
         Vehicle updated = vehicleService.updateVehicleStatus(id, request.getStatus());
         return ResponseEntity.ok(updated);
     }
 
     @PostMapping
     public ResponseEntity<Vehicle> createVehicle(
-            @Valid @RequestBody CreateVehicleRequest request)
-    {
+            @Valid @RequestBody CreateVehicleRequest request) {
         Vehicle created = vehicleService.createVehicle(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }

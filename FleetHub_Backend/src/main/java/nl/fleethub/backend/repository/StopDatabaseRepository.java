@@ -28,12 +28,6 @@ public class StopDatabaseRepository implements StopRepository {
 
     @Override
     public List<DeliveryStop> findByRouteId(Long routeId) {
-        // Geeft direct de stops van de route terug, netjes op volgorde
-        return springDataStopRepository.findByRouteIdOrderBySequenceOrderAsc(routeId);
-    }
-
-    @Override
-    public List<DeliveryStop> findByRouteIdOrderBySequenceOrderAsc(Long routeId) {
         return springDataStopRepository.findByRouteIdOrderBySequenceOrderAsc(routeId);
     }
 
@@ -55,5 +49,10 @@ public class StopDatabaseRepository implements StopRepository {
         stop.setStatus(newStatus);
         stop.setCompletedAt(LocalDateTime.now());
         return springDataStopRepository.save(stop);
+    }
+
+    @Override
+    public Optional<DeliveryStop> findByOrderNumber(String orderNumber) {
+        return springDataStopRepository.findByOrderNumber(orderNumber);
     }
 }

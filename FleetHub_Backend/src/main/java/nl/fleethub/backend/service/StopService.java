@@ -1,6 +1,7 @@
 package nl.fleethub.backend.service;
 
 import nl.fleethub.backend.dto.CreateStopRequest;
+import nl.fleethub.backend.dto.CustomerTrackingResponse;
 import nl.fleethub.backend.model.DeliveryStop;
 import nl.fleethub.backend.model.StopStatus;
 import nl.fleethub.backend.repository.interfaces.StopRepository;
@@ -93,5 +94,25 @@ public class StopService {
         stop.setStatus(newStatus);
         stop.setCompletedAt(LocalDateTime.now());
         return stopRepository.updateStatus(stopId, newStatus);
+    }
+
+    @Transactional(readOnly = true)
+    public CustomerTrackingResponse getTrackingInfo(String orderNumber) {
+        if (orderNumber == null || orderNumber.trim().isBlank()) {
+            throw new IllegalArgumentException("Order number is required");
+        }
+
+        DeliveryStop stop = stopRepository.findByOrderNumber(orderNumber.trim())
+                .orElseThrow(() -> new IllegalArgumentException("Order with number " + orderNumber + " not found"));
+
+        return new CustomerTrackingResponse(
+                stop.getOrderNumber(),
+                stop.getRecipientName(),
+                stop.getAddress(),
+                stop.getCity(),
+                stop.getStatus(),
+                stop.getEstimatedArrival(),
+                stop.getCompletedAt()
+        );
     }
 }

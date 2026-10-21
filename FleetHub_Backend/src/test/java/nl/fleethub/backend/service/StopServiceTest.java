@@ -1,6 +1,7 @@
 package nl.fleethub.backend.service;
 
 import nl.fleethub.backend.dto.CreateStopRequest;
+import nl.fleethub.backend.dto.CustomerTrackingResponse;
 import nl.fleethub.backend.model.DeliveryStop;
 import nl.fleethub.backend.model.StopStatus;
 import nl.fleethub.backend.repository.interfaces.StopRepository;
@@ -184,6 +185,44 @@ class StopServiceTest {
         assertEquals("Stop with id 999 not found", ex.getMessage());
         verify(stopRepository, times(1)).findById(999L);
         verify(stopRepository, never()).updateStatus(anyLong(), any());
+    }
+
+    @Test
+    void getTrackingInfo_Success() {
+        DeliveryStop stop = new DeliveryStop();
+        stop.setOrderNumber("ORD-1001");
+        stop.setRecipientName("Sophie Jansen");
+        stop.setAddress("Frederiklaan 10");
+        stop.setCity("Eindhoven");
+        stop.setStatus(StopStatus.PENDING);
+        stop.setEstimatedArrival(LocalDateTime.of(2026, 10, 14, 16, 30));
+
+        when(stopRepository.findByOrderNumber("ORD-1001")).thenReturn(Optional.of(stop));
+
+        CustomerTrackingResponse response = stopService.getTrackingInfo("ORD-1001");
+
+        assertNotNull(response);
+        assertEquals("ORD-1001", response.getOrderNumber());
+        assertEquals("Sophie Jansen", response.getRecipientName());
+        assertEquals(StopStatus.PENDING, response.getStatus());
+        verify(stopRepository, times(1)).findByOrderNumber("ORD-1001");
+    }
+
+    @Test
+    void getTrackingInfo_ThrowsException_WhenOrderNumberNullOrBlank() {
+        assertThrows(IllegalArgumentException.class, () -> stopService.getTrackingInfo(null));
+        assertThrows(IllegalArgumentException.class, () -> stopService.getTrackingInfo("   "));
+    }
+
+    @Test
+    void getTrackingInfo_ThrowsException_WhenOrderNotFound() {
+        when(stopRepository.findByOrderNumber("ORD-UNKNOWN")).thenReturn(Optional.empty());
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> stopService.getTrackingInfo("ORD-UNKNOWN"));
+
+        assertTrue(ex.getMessage().contains("not found"));
+        verify(stopRepository, times(1)).findByOrderNumber("ORD-UNKNOWN");
     }
 
     @Test
