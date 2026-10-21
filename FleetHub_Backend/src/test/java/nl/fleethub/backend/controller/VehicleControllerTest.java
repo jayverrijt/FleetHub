@@ -3,14 +3,17 @@ package nl.fleethub.backend.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import nl.fleethub.backend.dto.CreateVehicleRequest;
 import nl.fleethub.backend.dto.UpdateVehicleStatusRequest;
+import nl.fleethub.backend.exception.GlobalExceptionHandler;
 import nl.fleethub.backend.model.Vehicle;
 import nl.fleethub.backend.model.VehicleStatus;
 import nl.fleethub.backend.service.VehicleService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -23,6 +26,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(VehicleController.class)
+@AutoConfigureMockMvc(addFilters = false)
+@Import(GlobalExceptionHandler.class)
 class VehicleControllerTest {
 
     @Autowired

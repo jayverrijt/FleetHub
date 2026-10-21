@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { fetchTrackingInfo } from '../services/trackingService';
 
 export default function CustomerTrackingView() {
@@ -23,127 +23,94 @@ export default function CustomerTrackingView() {
         }
     };
 
-    const getStatusConfig = (status) => {
+    const getStatusBadge = (status) => {
         switch (status) {
             case 'DELIVERED':
-                return { label: 'Bezorgd', color: '#4ade80', bg: 'rgba(34, 197, 94, 0.2)' };
+                return {
+                    label: 'Bezorgd',
+                    className: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                };
             case 'FAILED_NOT_HOME':
-                return { label: 'Niet thuis aangetroffen', color: '#f87171', bg: 'rgba(239, 68, 68, 0.2)' };
+                return {
+                    label: 'Niet thuis aangetroffen',
+                    className: 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                };
             case 'PENDING':
             default:
-                return { label: 'Chauffeur onderweg', color: '#60a5fa', bg: 'rgba(59, 130, 246, 0.2)' };
+                return {
+                    label: 'Chauffeur onderweg',
+                    className: 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                };
         }
     };
 
     return (
-        <div style={{ maxWidth: '420px', margin: '0 auto', padding: '16px', color: '#fff' }}>
+        <div className="w-full max-w-xl mx-auto p-4 sm:p-6 text-slate-100">
+
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
-                <div style={{ background: '#000', borderRadius: '6px', padding: '6px 10px', fontWeight: 'bold', fontSize: '0.8rem', border: '1px solid #374151' }}>
-                    LOGO
-                </div>
-                <h2 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>FleetHub: Track & Trace</h2>
+            <div className="flex items-center gap-3 mb-6">
+        <span className="bg-slate-900 border border-slate-700 text-white text-xs font-black px-2.5 py-1.5 rounded-lg tracking-wider">
+          FLEETHUB
+        </span>
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+                    Track &amp; Trace
+                </h2>
             </div>
 
             {/* Zoekbalk */}
-            <form onSubmit={handleSearch} style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+            <form onSubmit={handleSearch} className="flex gap-2 mb-6">
                 <input
                     type="text"
                     value={orderNumber}
                     onChange={(e) => setOrderNumber(e.target.value)}
                     placeholder="Voer ordernummer in (bijv. ORD-1001)"
-                    style={{
-                        flex: 1,
-                        padding: '12px 14px',
-                        backgroundColor: '#1e242d',
-                        border: '1px solid #374151',
-                        borderRadius: '10px',
-                        color: '#fff',
-                        outline: 'none',
-                        fontSize: '0.9rem'
-                    }}
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
                 />
                 <button
                     type="submit"
                     disabled={loading}
-                    style={{
-                        padding: '0 20px',
-                        backgroundColor: '#2563eb',
-                        border: 'none',
-                        borderRadius: '10px',
-                        color: '#fff',
-                        fontWeight: 600,
-                        cursor: loading ? 'not-allowed' : 'pointer'
-                    }}
+                    className="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-3 rounded-xl text-sm transition-colors disabled:opacity-50"
                 >
-                    {loading ? '...' : 'Zoek'}
+                    {loading ? '...' : 'Zoeken'}
                 </button>
             </form>
 
-            {/* 404 / Foutmelding */}
+            {/* Foutmelding */}
             {error && (
-                <div style={{
-                    padding: '14px',
-                    borderRadius: '10px',
-                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                    border: '1px solid rgba(239, 68, 68, 0.4)',
-                    color: '#fca5a5',
-                    fontSize: '0.9rem',
-                    marginBottom: '16px'
-                }}>
-                    ⚠️ {error}
+                <div className="mb-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-center gap-2">
+                    <span>⚠️</span>
+                    <span>{error}</span>
                 </div>
             )}
 
             {/* Resultaat Card */}
             {trackingData && (
-                <div style={{
-                    backgroundColor: '#1e242d',
-                    borderRadius: '14px',
-                    padding: '20px',
-                    border: '1px solid #2d3748',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                        <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>Zending</span>
-                        <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>{trackingData.orderNumber}</span>
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+                    <div className="flex justify-between items-center">
+                        <span className="text-xs uppercase tracking-wider text-slate-400 font-medium">Zending</span>
+                        <span className="text-base font-bold text-white tracking-wide">{trackingData.orderNumber}</span>
                     </div>
 
-                    <div style={{ marginBottom: '18px' }}>
-            <span style={{
-                display: 'inline-block',
-                padding: '6px 14px',
-                borderRadius: '20px',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                color: getStatusConfig(trackingData.status).color,
-                backgroundColor: getStatusConfig(trackingData.status).bg
-            }}>
-              ● {getStatusConfig(trackingData.status).label}
+                    <div>
+            <span className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border ${getStatusBadge(trackingData.status).className}`}>
+              <span className="h-2 w-2 rounded-full bg-current"></span>
+                {getStatusBadge(trackingData.status).label}
             </span>
                     </div>
 
-                    <div style={{ borderTop: '1px solid #374151', paddingTop: '14px' }}>
-                        <div style={{ fontSize: '0.8rem', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '4px' }}>
+                    <div className="border-t border-slate-800 pt-4">
+                        <div className="text-xs text-slate-400 uppercase tracking-wider mb-1 font-medium">
                             Bezorgadres
                         </div>
-                        <div style={{ fontSize: '1rem', fontWeight: 600, color: '#f3f4f6' }}>{trackingData.recipientName}</div>
-                        <div style={{ color: '#9ca3af', fontSize: '0.9rem', marginTop: '2px' }}>
+                        <div className="text-base font-semibold text-white">{trackingData.recipientName}</div>
+                        <div className="text-sm text-slate-400 mt-0.5">
                             {trackingData.address}, {trackingData.city}
                         </div>
                     </div>
 
                     {trackingData.completedAt && (
-                        <div style={{
-                            marginTop: '16px',
-                            padding: '10px 12px',
-                            borderRadius: '8px',
-                            backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                            border: '1px solid rgba(34, 197, 94, 0.3)',
-                            fontSize: '0.85rem',
-                            color: '#86efac'
-                        }}>
-                            ✓ Bezorgd om: {new Date(trackingData.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-medium">
+                            ✓ Afgerond om: {new Date(trackingData.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                     )}
                 </div>

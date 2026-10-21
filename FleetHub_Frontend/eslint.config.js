@@ -17,5 +17,11 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      'react/react-in-jsx-scope': 'off',
+      'no-unused-vars': ['warn', { varsIgnorePattern: '^React$' }],
+      // Schakelt de cascading render waarschuwing uit:
+      'react-hooks/set-state-in-effect': 'off',
+    }
   },
 ])

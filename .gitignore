@@ -1,3 +1,16 @@
+### --- Environment & Secrets (CRUCIAAL) ---
+.env
+.env.*
+*.env
+*.env.local
+*.properties.local
+
+# Specifiek voor de Frontend submodule/map
+FleetHub_Frontend/.env
+FleetHub_Frontend/.env.*
+FleetHub_Frontend/*.env
+FleetHub_Frontend/*.env.local
+
 ### --- Java & Spring Boot (FleetHub_Backend) ---
 FleetHub_Backend/.gradle/
 FleetHub_Backend/build/
@@ -12,6 +25,18 @@ FleetHub_Backend/*.log
 !FleetHub_Backend/gradle/wrapper/gradle-wrapper.jar
 !FleetHub_Backend/gradle/wrapper/gradle-wrapper.properties
 
+### --- Frontend (FleetHub_Frontend) ---
+node_modules/
+dist/
+dist-ssr/
+FleetHub_Frontend/node_modules/
+FleetHub_Frontend/dist/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
 ### --- IDE's & Editors ---
 .idea/
 *.iml
@@ -23,18 +48,7 @@ FleetHub_Backend/*.log
 .DS_Store
 Thumbs.db
 
-### --- Environment & Secrets ---
-*.env
-*.env.local
-*.properties.local
-
 ### --- Docker & Build Artifacts ---
 *.jar
 *.war
 docker-compose.override.yml
-
-### --- Node / Frontend (voor later) ---
-node_modules/
-dist/
-.nuxt/
-.output/

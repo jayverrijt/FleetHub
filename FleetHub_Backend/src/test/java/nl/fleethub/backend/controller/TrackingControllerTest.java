@@ -4,14 +4,14 @@ import nl.fleethub.backend.dto.CustomerTrackingResponse;
 import nl.fleethub.backend.exception.GlobalExceptionHandler;
 import nl.fleethub.backend.model.StopStatus;
 import nl.fleethub.backend.service.StopService;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDateTime;
 
@@ -20,25 +20,19 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@ExtendWith(MockitoExtension.class)
+@WebMvcTest(TrackingController.class)
+@AutoConfigureMockMvc(addFilters = false)
+@Import(GlobalExceptionHandler.class)
 class TrackingControllerTest {
 
+    @Autowired
     private MockMvc mockMvc;
 
-    @Mock
+    @MockBean
     private StopService stopService;
 
-    @InjectMocks
-    private TrackingController trackingController;
-
-    @BeforeEach
-    void setUp() {
-        this.mockMvc = MockMvcBuilders.standaloneSetup(trackingController)
-                .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
-    }
-
     @Test
+    @DisplayName("API-TRACK-01: trackOrder retourneert 200 OK en tracking details")
     void trackOrder_Returns200AndTrackingDetails() throws Exception {
         CustomerTrackingResponse response = new CustomerTrackingResponse(
                 "ORD-1001",
@@ -62,6 +56,7 @@ class TrackingControllerTest {
     }
 
     @Test
+    @DisplayName("API-TRACK-02: trackOrder retourneert 404 als order onbekend is")
     void trackOrder_Returns404_WhenOrderNotFound() throws Exception {
         when(stopService.getTrackingInfo("ORD-UNKNOWN"))
                 .thenThrow(new IllegalArgumentException("Order with number ORD-UNKNOWN not found"));
