@@ -1,24 +1,22 @@
-import { API_BASE_URL, getAuthHeaders, handleApiResponse } from './apiClient';
+import { apiGet, apiPatch } from './apiClient';
 
-export async function fetchDriverRoutes(driverId = 1) {
-    const response = await fetch(`${API_BASE_URL}/routes?driverId=${driverId}`, {
-        headers: getAuthHeaders()
-    });
-    return handleApiResponse(response, 'Fout bij ophalen routes');
+/**
+ * Haalt alle routes op voor een chauffeur (bijv. driverId = 1)
+ */
+export function fetchDriverRoutes(driverId = 1) {
+    return apiGet(`/routes?driverId=${driverId}`, 'Fout bij ophalen van routes');
 }
 
-export async function fetchStopsForRoute(routeId) {
-    const response = await fetch(`${API_BASE_URL}/routes/${routeId}/stops`, {
-        headers: getAuthHeaders()
-    });
-    return handleApiResponse(response, `Fout bij ophalen van stops voor route ${routeId}`);
+/**
+ * Haalt alle geordende stops op voor een specifiek routeId (bijv. 104)
+ */
+export function fetchStopsForRoute(routeId) {
+    return apiGet(`/routes/${routeId}/stops`, `Fout bij ophalen van stops voor route ${routeId}`);
 }
 
-export async function updateStopStatus(stopId, status) {
-    const response = await fetch(`${API_BASE_URL}/stops/${stopId}/status`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ status })
-    });
-    return handleApiResponse(response, 'Fout bij bijwerken status');
+/**
+ * US5b: Werkt de afleverstatus van een stop bij (DELIVERED, FAILED_NOT_HOME, etc.)
+ */
+export function updateStopStatus(stopId, status) {
+    return apiPatch(`/stops/${stopId}/status`, { status }, 'Fout bij bijwerken status');
 }

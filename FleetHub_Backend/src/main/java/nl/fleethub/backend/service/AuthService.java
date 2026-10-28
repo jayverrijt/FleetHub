@@ -27,6 +27,8 @@ public class AuthService {
         User user = userRepository.findByEmail(request.getEmail().trim().toLowerCase())
                 .orElseThrow(() -> new IllegalArgumentException("Ongeldige inloggegevens"));
 
+        // BCrypt haalt automatisch de unieke salt uit de opgeslagen hash (user.getPassword()),
+        // combineert die met het ingevoerde wachtwoord en verifieert de uitkomst veilig.
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new IllegalArgumentException("Ongeldige inloggegevens");
         }

@@ -11,7 +11,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/routes")
-@CrossOrigin(origins = "*")
 public class RouteController {
 
     private final SpringDataRouteRepository routeRepository;

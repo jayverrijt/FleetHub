@@ -1,10 +1,16 @@
-import { API_BASE_URL } from './apiClient';
+import { apiFetch } from './apiClient';
 
+/**
+ * US2: Haalt publieke track & trace informatie op voor een ordernummer.
+ */
 export async function fetchTrackingInfo(orderNumber) {
-    const response = await fetch(`${API_BASE_URL}/tracking/${orderNumber}`);
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.message || `Bestelling ${orderNumber} niet gevonden.`);
+    if (!orderNumber || !orderNumber.trim()) {
+        throw new Error('Vul een geldig ordernummer in.');
     }
-    return response.json();
+
+    return apiFetch(
+        `/tracking/${encodeURIComponent(orderNumber.trim())}`,
+        { method: 'GET' },
+        `Bestelling ${orderNumber} niet gevonden`
+    );
 }

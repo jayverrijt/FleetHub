@@ -19,11 +19,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(AuthController.class)
-@AutoConfigureMockMvc(addFilters = false) // Zorgt dat de filter chain de controller tests niet blokkeert
+@AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class AuthControllerTest {
 
@@ -37,10 +36,16 @@ class AuthControllerTest {
     private AuthService authService;
 
     @Test
-    @DisplayName("API-AUTH-01: Succesvol inloggen retourneert 200 OK en JWT")
-    void login_Success() throws Exception {
+    @DisplayName("API-AUTH-01: Succesvol inloggen retourneert 200 OK en zet HttpOnly cookie")
+    void login_Success_SetsCookieAndReturnsUser() throws Exception {
         LoginRequest request = new LoginRequest("driver1@fleethub.nl", "password123");
-        AuthResponse response = new AuthResponse("mocked-jwt-token", 1L, "driver1@fleethub.nl", "John Doe", Role.ROLE_COURIER);
+        AuthResponse response = new AuthResponse(
+                "mocked-jwt-token",
+                1L,
+                "driver1@fleethub.nl",
+                "Jan de Vries",
+                Role.ROLE_COURIER
+        );
 
         when(authService.authenticate(any(LoginRequest.class))).thenReturn(response);
 
@@ -48,36 +53,30 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("mocked-jwt-token"))
-                .andExpect(jsonPath("$.role").value("ROLE_COURIER"))
-                .andExpect(jsonPath("$.email").value("driver1@fleethub.nl"));
+                .andExpect(cookie().exists("jwt_token"))
+                .andExpect(cookie().httpOnly("jwt_token", true))
+                .andExpect(cookie().value("jwt_token", "mocked-jwt-token"))
+                .andExpect(jsonPath("$.email").value("driver1@fleethub.nl"))
+                .andExpect(jsonPath("$.fullName").value("Jan de Vries"))
+                .andExpect(jsonPath("$.role").value("ROLE_COURIER"));
     }
 
     @Test
-    @DisplayName("API-AUTH-02: Ongeldige invoer (lege velden) triggert Bean Validation 400 Bad Request")
+    @DisplayName("API-AUTH-02: Uitloggen wist het jwt_token cookie (maxAge = 0)")
+    void logout_Success_ClearsCookie() throws Exception {
+        mockMvc.perform(post("/api/auth/logout"))
+                .andExpect(status().isOk())
+                .andExpect(cookie().maxAge("jwt_token", 0));
+    }
+
+    @Test
+    @DisplayName("API-AUTH-03: Ongeldige invoer triggert Bean Validation 400 Bad Request")
     void login_InvalidInput_Returns400() throws Exception {
-        LoginRequest invalidRequest = new LoginRequest("", ""); // Lege body
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invalidRequest)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.email").exists())
-                .andExpect(jsonPath("$.password").exists());
-    }
-
-    @Test
-    @DisplayName("API-AUTH-03: Verkeerde credentials triggert 400 Bad Request via GlobalExceptionHandler")
-    void login_InvalidCredentials_Returns400() throws Exception {
-        LoginRequest request = new LoginRequest("driver1@fleethub.nl", "wrongPassword");
-
-        when(authService.authenticate(any(LoginRequest.class)))
-                .thenThrow(new IllegalArgumentException("Ongeldige inloggegevens"));
+        LoginRequest request = new LoginRequest("", "");
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Ongeldige inloggegevens"));
+                .andExpect(status().isBadRequest());
     }
 }

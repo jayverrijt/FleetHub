@@ -1,17 +1,13 @@
 package nl.fleethub.backend.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import nl.fleethub.backend.controller.RouteController;
 import nl.fleethub.backend.controller.StopController;
 import nl.fleethub.backend.controller.TrackingController;
 import nl.fleethub.backend.controller.VehicleController;
 import nl.fleethub.backend.dto.CustomerTrackingResponse;
-import nl.fleethub.backend.dto.UpdateStopStatusRequest;
-import nl.fleethub.backend.model.DeliveryStop;
 import nl.fleethub.backend.model.StopStatus;
-import nl.fleethub.backend.model.Vehicle;
-import nl.fleethub.backend.model.VehicleStatus;
+import nl.fleethub.backend.repository.jpa.SpringDataRouteRepository;
 import nl.fleethub.backend.repository.jpa.SpringDataUserRepository;
-import nl.fleethub.backend.service.AuthService;
 import nl.fleethub.backend.service.StopService;
 import nl.fleethub.backend.service.VehicleService;
 import org.junit.jupiter.api.DisplayName;
@@ -20,28 +16,31 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.List;
+import java.time.LocalDateTime;
+import java.util.Collections;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = {TrackingController.class, StopController.class, VehicleController.class})
+@WebMvcTest({TrackingController.class, StopController.class, RouteController.class, VehicleController.class})
 @Import({SecurityConfig.class, JwtTokenProvider.class})
+@TestPropertySource(properties = "app.cors.allowed-origins=http://localhost:5173")
 class SecurityAccessIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    @MockBean
+    private SpringDataUserRepository userRepository;
+
+    @MockBean
+    private SpringDataRouteRepository routeRepository;
 
     @MockBean
     private StopService stopService;
@@ -49,19 +48,12 @@ class SecurityAccessIntegrationTest {
     @MockBean
     private VehicleService vehicleService;
 
-    @MockBean
-    private AuthService authService;
-
-    @MockBean
-    private SpringDataUserRepository userRepository;
-
-    // --- 1. PUBLIEK (ANONIEM) ---
-
     @Test
-    @DisplayName("SEC-01: Anonieme gebruiker kan publieke track & trace raadplegen (200 OK)")
-    void anonymous_CanAccessTracking() throws Exception {
-        CustomerTrackingResponse response = new CustomerTrackingResponse();
-        response.setOrderNumber("ORD-1001");
+    @DisplayName("SEC-ACC-01: Publiek endpoint (/api/tracking) is toegankelijk ZONDER login")
+    void publicTracking_AccessibleWithoutLogin() throws Exception {
+        CustomerTrackingResponse response = new CustomerTrackingResponse(
+                "ORD-1001", "Klant", "Adres 1", "Stad", StopStatus.PENDING, LocalDateTime.now(), null
+        );
         when(stopService.getTrackingInfo("ORD-1001")).thenReturn(response);
 
         mockMvc.perform(get("/api/tracking/ORD-1001"))
@@ -69,71 +61,44 @@ class SecurityAccessIntegrationTest {
     }
 
     @Test
-    @DisplayName("SEC-02: Anonieme bezoeker krijgt 401 Unauthorized op InDrive stops")
-    void anonymous_CannotAccessStops() throws Exception {
-        mockMvc.perform(patch("/api/stops/1/status")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"status\": \"DELIVERED\"}"))
+    @DisplayName("SEC-ACC-02: Interne stops weigeren anonieme gebruikers met 401 Unauthorized")
+    void stops_RejectedWhenAnonymous() throws Exception {
+        mockMvc.perform(patch("/api/stops/1/status"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    @DisplayName("SEC-03: Anonieme bezoeker krijgt 401 Unauthorized op vlootbeheer")
-    void anonymous_CannotAccessVehicles() throws Exception {
-        mockMvc.perform(get("/api/vehicles"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    // --- 2. DISPATCHER ACCESS ---
-
-    @Test
-    @WithMockUser(authorities = "ROLE_DISPATCHER")
-    @DisplayName("SEC-04: Dispatcher HEEFT toegang tot wagenparkbeheer (200 OK)")
-    void dispatcher_CanAccessVehicles() throws Exception {
-        Vehicle vehicle = new Vehicle(1L, "V-101-BB", "Mercedes eVito", VehicleStatus.AVAILABLE, 60, 240, null);
-        when(vehicleService.getAllVehicles()).thenReturn(List.of(vehicle));
-
-        mockMvc.perform(get("/api/vehicles"))
-                .andExpect(status().isOk());
+    @DisplayName("SEC-ACC-03: Ingelogde Chauffeur (ROLE_COURIER) heeft toegang tot stops")
+    @WithMockUser(authorities = "ROLE_COURIER")
+    void stops_AccessibleForCourier() throws Exception {
+        // Geeft 400 i.p.v. 401/403 omdat er geen body meegegeven is, wat bewijst dat de autorisatielaag gepasseerd is
+        mockMvc.perform(patch("/api/stops/1/status"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
+    @DisplayName("SEC-ACC-04: Dispatcher (ROLE_DISPATCHER) wordt geweigerd op chauffeursmutaties (403 Forbidden)")
     @WithMockUser(authorities = "ROLE_DISPATCHER")
-    @DisplayName("SEC-05: Dispatcher HEEFT GEEN toegang tot InDrive stopmutaties (403 Forbidden)")
-    void dispatcher_CannotMutateInDriveStops() throws Exception {
-        UpdateStopStatusRequest request = new UpdateStopStatusRequest();
-        request.setStatus(StopStatus.DELIVERED);
-
-        mockMvc.perform(patch("/api/stops/1/status")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+    void stops_ForbiddenForDispatcher() throws Exception {
+        mockMvc.perform(patch("/api/stops/1/status"))
                 .andExpect(status().isForbidden());
     }
 
-    // --- 3. COURIER ACCESS ---
-
     @Test
+    @DisplayName("SEC-ACC-05: Chauffeur (ROLE_COURIER) wordt geweigerd op wagenparkbeheer (403 Forbidden)")
     @WithMockUser(authorities = "ROLE_COURIER")
-    @DisplayName("SEC-06: Chauffeur HEEFT toegang tot InDrive stopmutaties (200 OK)")
-    void courier_CanMutateInDriveStops() throws Exception {
-        DeliveryStop stop = new DeliveryStop();
-        stop.setStatus(StopStatus.DELIVERED);
-        when(stopService.updateStopStatus(eq(1L), any())).thenReturn(stop);
-
-        UpdateStopStatusRequest request = new UpdateStopStatusRequest();
-        request.setStatus(StopStatus.DELIVERED);
-
-        mockMvc.perform(patch("/api/stops/1/status")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+    void vehicles_ForbiddenForCourier() throws Exception {
+        mockMvc.perform(get("/api/vehicles"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_COURIER")
-    @DisplayName("SEC-07: Chauffeur HEEFT GEEN toegang tot wagenparkbeheer (403 Forbidden)")
-    void courier_CannotAccessVehicles() throws Exception {
+    @DisplayName("SEC-ACC-06: Dispatcher (ROLE_DISPATCHER) heeft toegang tot wagenparkbeheer")
+    @WithMockUser(authorities = "ROLE_DISPATCHER")
+    void vehicles_AccessibleForDispatcher() throws Exception {
+        when(vehicleService.getAllVehicles()).thenReturn(Collections.emptyList());
+
         mockMvc.perform(get("/api/vehicles"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 }

@@ -1,7 +1,7 @@
 const geocodeCache = new Map();
 
 /**
- * Skakel 'n adres en stad om na [latitude, longitude] via OpenStreetMap Nominatim.
+ * Zet een adres en stad om naar [latitude, longitude] via OpenStreetMap Nominatim.
  * @param {string} address
  * @param {string} city
  * @returns {Promise<[number, number]>}
@@ -13,6 +13,7 @@ export async function geocodeAddress(address, city) {
         return geocodeCache.get(query);
     }
 
+    // 1. Zoek primair op volledig adres
     try {
         const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
         const response = await fetch(url, {
@@ -25,9 +26,9 @@ export async function geocodeAddress(address, city) {
         if (response.ok) {
             const data = await response.json();
             if (Array.isArray(data) && data.length > 0) {
-                const firstResult = data[0];
-                const lat = parseFloat(firstResult['lat']);
-                const lon = parseFloat(firstResult['lon']);
+                const first = data[0];
+                const lat = parseFloat(first['lat']);
+                const lon = parseFloat(first['lon']);
                 if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
                     const coords = [lat, lon];
                     geocodeCache.set(query, coords);
@@ -36,10 +37,10 @@ export async function geocodeAddress(address, city) {
             }
         }
     } catch (error) {
-        console.warn(`Kon adres nie dinamies geokodeer nie (${query}):`, error);
+        console.warn(`Adres kon niet direct geocodeerd worden (${query}):`, error);
     }
 
-    // Terugval-opsie: soek slegs op die stadsnaam indien die straat nie gevind word nie
+    // 2. Fallback: zoek uitsluitend op stadsnaam indien straat niet gevonden wordt
     try {
         const cityUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ', Netherlands')}&limit=1`;
         const cityRes = await fetch(cityUrl, {
@@ -52,9 +53,9 @@ export async function geocodeAddress(address, city) {
         if (cityRes.ok) {
             const cityData = await cityRes.json();
             if (Array.isArray(cityData) && cityData.length > 0) {
-                const fallbackItem = cityData[0];
-                const fallbackLat = parseFloat(fallbackItem['lat']);
-                const fallbackLon = parseFloat(fallbackItem['lon']);
+                const fallback = cityData[0];
+                const fallbackLat = parseFloat(fallback['lat']);
+                const fallbackLon = parseFloat(fallback['lon']);
                 if (!Number.isNaN(fallbackLat) && !Number.isNaN(fallbackLon)) {
                     const fallbackCoords = [fallbackLat, fallbackLon];
                     geocodeCache.set(query, fallbackCoords);
@@ -63,9 +64,9 @@ export async function geocodeAddress(address, city) {
             }
         }
     } catch (e) {
-        console.error('Terugval-geokodering het misluk:', e);
+        console.error('Fallback-geocodering op stadsniveau mislukt:', e);
     }
 
-    // Verstekkoördinate vir Eindhoven indien alle oproepe misluk
+    // 3. Standaard coördinaten (Centrum Eindhoven) als alle verzoeken falen
     return [51.4416, 5.4697];
 }

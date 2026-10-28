@@ -7,7 +7,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/tracking")
-@CrossOrigin(origins = "*")
 public class TrackingController {
 
     private final StopService stopService;
