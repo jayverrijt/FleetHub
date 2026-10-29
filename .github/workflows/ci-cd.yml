@@ -21,13 +21,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Java setup & Backend Build
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
           cache: 'gradle'
 
-      - name: Build, Test & JaCoCo Coverage
+      - name: Build, Test & JaCoCo Coverage (Backend)
         working-directory: ./FleetHub_Backend
         run: |
           chmod +x gradlew
@@ -35,7 +36,7 @@ jobs:
           ./gradlew compileJava compileTestJava --no-daemon
           ./gradlew check -x compileJava -x compileTestJava --no-daemon
 
-      - name: Code Quality & Coverage Analysis
+      - name: Code Quality & Coverage Analysis (SonarCloud)
         uses: SonarSource/sonarqube-scan-action@v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -49,6 +50,8 @@ jobs:
             -Dsonar.tests=FleetHub_Backend/src/test/java
             -Dsonar.java.binaries=FleetHub_Backend/build/classes/java/main
             -Dsonar.coverage.jacoco.xmlReportPaths=FleetHub_Backend/build/reports/jacoco/test/jacocoTestReport.xml
+            -Dsonar.coverage.exclusions=**/BackendApplication.java,**/dto/**,**/model/**,**/repository/**,**/security/**
+            -Dsonar.cpd.exclusions=**/dto/**,**/model/**
 
       - if: always()
         uses: actions/upload-artifact@v4
@@ -71,6 +74,23 @@ jobs:
         with:
           name: compiled-spring-jar
           path: FleetHub_Backend/build/libs/*.jar
+
+      # Node setup & Frontend Build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build React Frontend
+        working-directory: ./FleetHub_Frontend
+        run: |
+          npm ci
+          npm run build
+
+      - if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-frontend-dist
+          path: FleetHub_Frontend/dist/
 
   github-release:
     name: 2. Create GitHub Release (Production Only)
@@ -109,19 +129,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Artefacten ophalen
       - uses: actions/download-artifact@v4
         with:
           name: compiled-spring-jar
           path: FleetHub_Backend/build/libs/
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: built-frontend-dist
+          path: FleetHub_Frontend/dist/
+
       - id: env-targets
         run: |
           if [ "${{ github.ref_name }}" = "production" ]; then
             echo "DOCKER_TAG=prod" >> $GITHUB_OUTPUT
-            echo "COMPOSE_SERVICE=backend-prod" >> $GITHUB_OUTPUT
+            echo "BE_SERVICE=backend-prod" >> $GITHUB_OUTPUT
+            echo "FE_SERVICE=frontend-prod" >> $GITHUB_OUTPUT
           else
             echo "DOCKER_TAG=test" >> $GITHUB_OUTPUT
-            echo "COMPOSE_SERVICE=backend-test" >> $GITHUB_OUTPUT
+            echo "BE_SERVICE=backend-test" >> $GITHUB_OUTPUT
+            echo "FE_SERVICE=frontend-test" >> $GITHUB_OUTPUT
           fi
 
       - uses: docker/login-action@v3
@@ -130,6 +158,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Build & Push Backend
       - uses: docker/build-push-action@v5
         with:
           context: ./FleetHub_Backend
@@ -137,6 +166,15 @@ jobs:
           push: true
           tags: ghcr.io/jayverrijt/fleethub-backend:${{ steps.env-targets.outputs.DOCKER_TAG }}
 
+      # Build & Push Frontend
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./FleetHub_Frontend
+          file: ./FleetHub_Frontend/Dockerfile
+          push: true
+          tags: ghcr.io/jayverrijt/fleethub-frontend:${{ steps.env-targets.outputs.DOCKER_TAG }}
+
+      # VPN & SSH Deployment
       - name: Connect to Fontys Netlab OpenVPN
         run: |
           sudo apt-get update && sudo apt-get install -y openvpn
@@ -157,7 +195,10 @@ jobs:
           script: |
             cd ~
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            docker compose pull ${{ steps.env-targets.outputs.COMPOSE_SERVICE }}
-            docker compose up -d --no-deps ${{ steps.env-targets.outputs.COMPOSE_SERVICE }}
+            # Pull en start Nginx Proxy Manager en MySQL indien nog niet actief
+            docker compose up -d nginx-proxy-manager mysql-test mysql-prod
+            # Pull en herstart de bijgewerkte frontend- en backend-containers
+            docker compose pull ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
+            docker compose up -d --no-deps ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
             docker image prune -f
 

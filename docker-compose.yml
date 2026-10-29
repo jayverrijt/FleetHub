@@ -1,0 +1,97 @@
+services:
+  # ==========================================
+  # REVERSE PROXY: NGINX PROXY MANAGER
+  # ==========================================
+  nginx-proxy-manager:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: fleethub-npm
+    restart: unless-stopped
+    ports:
+      - '80:80'     # HTTP verkeer
+      - '81:81'     # NPM Beheerdersinterface (Web UI)
+      - '443:443'   # HTTPS (SSL)
+    volumes:
+      - ./npm/data:/data
+      - ./npm/letsencrypt:/etc/letsencrypt
+    networks:
+      - fleethub-net
+
+  # ==========================================
+  # TESTING ENVIRONMENT (Branch: feature/**)
+  # ==========================================
+  mysql-test:
+    image: mysql:8.0
+    container_name: fleethub-mysql-test
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: test_root_password
+      MYSQL_DATABASE: fleethub_test
+    volumes:
+      - mysql_test_data:/var/lib/mysql
+    networks:
+      - fleethub-net
+
+  backend-test:
+    image: ghcr.io/jayverrijt/fleethub-backend:test
+    container_name: fleethub-api-test
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-test:3306/fleethub_test?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: test_root_password
+    depends_on:
+      - mysql-test
+    networks:
+      - fleethub-net
+
+  frontend-test:
+    image: ghcr.io/jayverrijt/fleethub-frontend:test
+    container_name: fleethub-frontend-test
+    restart: unless-stopped
+    networks:
+      - fleethub-net
+
+  # ==========================================
+  # PRODUCTION ENVIRONMENT (Branch: production)
+  # ==========================================
+  mysql-prod:
+    image: mysql:8.0
+    container_name: fleethub-mysql-prod
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: prod_root_password
+      MYSQL_DATABASE: fleethub_prod
+    volumes:
+      - mysql_prod_data:/var/lib/mysql
+    networks:
+      - fleethub-net
+
+  backend-prod:
+    image: ghcr.io/jayverrijt/fleethub-backend:prod
+    container_name: fleethub-api-prod
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-prod:3306/fleethub_prod?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: prod_root_password
+    depends_on:
+      - mysql-prod
+    networks:
+      - fleethub-net
+
+  frontend-prod:
+    image: ghcr.io/jayverrijt/fleethub-frontend:prod
+    container_name: fleethub-frontend-prod
+    restart: unless-stopped
+    networks:
+      - fleethub-net
+
+volumes:
+  mysql_test_data:
+  mysql_prod_data:
+
+networks:
+  fleethub-net:
+    name: fleethub-net
+    driver: bridge
+
