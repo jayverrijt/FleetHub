@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.3.4'
     id 'jacoco'
+    id "org.sonarqube" version "5.1.0.4882"
 }
 
 group = 'nl.fleethub'
@@ -107,6 +108,15 @@ jacocoTestCoverageVerification {
                     'nl.fleethub.backend.security.JwtAuthenticationFilter'
             ]
         }
+    }
+}
+
+sonar {
+    properties {
+        property "sonar.projectKey", "jayverrijt_fleethub-backend" // Exacte key uit SonarCloud
+        property "sonar.organization", "jayverrijt"                 // Exacte org uit SonarCloud
+        property "sonar.host.url", "https://sonarcloud.io"
+        property "sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml"
     }
 }
 
