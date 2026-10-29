@@ -15,9 +15,6 @@ jobs:
   build-and-test:
     name: 1. CI - Build & Test
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./FleetHub_Backend
 
     steps:
       - uses: actions/checkout@v4
@@ -30,16 +27,19 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - run: chmod +x gradlew
-      - run: ./gradlew clean --no-daemon
-      - run: ./gradlew compileJava compileTestJava --no-daemon
-      - run: ./gradlew check -x compileJava -x compileTestJava --no-daemon
+      - name: Build & Run Tests
+        working-directory: ./FleetHub_Backend
+        run: |
+          chmod +x gradlew
+          ./gradlew clean --no-daemon
+          ./gradlew compileJava compileTestJava --no-daemon
+          ./gradlew check -x compileJava -x compileTestJava --no-daemon
 
-      - name: SonarQube / SonarCloud Scan
+      - name: Code Quality & Coverage Analysis
+        uses: SonarSource/sonarqube-scan-action@v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew sonar --no-daemon
 
       - if: always()
         uses: actions/upload-artifact@v4
@@ -54,6 +54,7 @@ jobs:
           path: FleetHub_Backend/build/reports/jacoco/test/html/
 
       - if: success()
+        working-directory: ./FleetHub_Backend
         run: ./gradlew bootJar -x test --no-daemon
 
       - if: success()
