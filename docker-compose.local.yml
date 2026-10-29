@@ -1,0 +1,50 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: fleethub-mysql-local
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: fleethub
+    volumes:
+      - mysql_local_data:/var/lib/mysql
+    networks:
+      - fleethub-local-net
+
+  backend:
+    build:
+      context: ./FleetHub_Backend
+      dockerfile: Dockerfile
+    container_name: fleethub-backend-local
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/fleethub?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+    depends_on:
+      - mysql
+    networks:
+      - fleethub-local-net
+
+  frontend:
+    build:
+      context: ./FleetHub_Frontend
+      dockerfile: Dockerfile
+    container_name: fleethub-frontend-local
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    networks:
+      - fleethub-local-net
+
+volumes:
+  mysql_local_data:
+
+networks:
+  fleethub-local-net:
+    driver: bridge
+
