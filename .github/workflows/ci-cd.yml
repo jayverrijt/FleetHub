@@ -5,6 +5,8 @@ on:
     branches:
       - production
       - "feature/**"
+      - "functions/**"
+      - "feature-*"
   pull_request:
     branches:
       - production
