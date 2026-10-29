@@ -13,7 +13,7 @@ on:
 
 jobs:
   build-and-test:
-    name: 1. CI - Build & Test
+    name: 1. CI - Build, Test & Quality Scan
     runs-on: ubuntu-latest
 
     steps:
@@ -27,7 +27,7 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - name: Build & Run Tests
+      - name: Build, Test & JaCoCo Coverage
         working-directory: ./FleetHub_Backend
         run: |
           chmod +x gradlew
@@ -40,6 +40,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=jayverrijt_fleethub-backend
+            -Dsonar.organization=jayverrijt
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.sources=FleetHub_Backend/src/main/java
+            -Dsonar.tests=FleetHub_Backend/src/test/java
+            -Dsonar.java.binaries=FleetHub_Backend/build/classes/java/main
+            -Dsonar.coverage.jacoco.xmlReportPaths=FleetHub_Backend/build/reports/jacoco/test/jacocoTestReport.xml
 
       - if: always()
         uses: actions/upload-artifact@v4

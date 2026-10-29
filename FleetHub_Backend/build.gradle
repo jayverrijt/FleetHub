@@ -64,6 +64,8 @@ tasks.named('test') {
             '-XX:+EnableDynamicAgentLoading',
             '-Dnet.bytebuddy.experimental=true'
     ])
+    // Voorkomt dat JaCoCo crasht op interne JDK 25 runtime-packages op macOS
+    systemProperty 'jacoco-agent.excludes', 'sun.*:jdk.*:org.gradle.*:com.sun.*'
     finalizedBy tasks.jacocoTestReport
 }
 
@@ -80,7 +82,8 @@ jacocoTestReport {
                     'nl/fleethub/backend/dto/**',
                     'nl/fleethub/backend/model/**',
                     'nl/fleethub/backend/repository/**',
-                    'nl/fleethub/backend/security/SecurityConfig.class'
+                    'nl/fleethub/backend/security/SecurityConfig.class',
+                    'nl/fleethub/backend/security/JwtAuthenticationFilter.class'
             ])
         }))
     }
@@ -101,7 +104,8 @@ jacocoTestCoverageVerification {
                     'nl.fleethub.backend.dto.*',
                     'nl.fleethub.backend.model.*',
                     'nl.fleethub.backend.repository.*',
-                    'nl.fleethub.backend.security.SecurityConfig'
+                    'nl.fleethub.backend.security.SecurityConfig',
+                    'nl.fleethub.backend.security.JwtAuthenticationFilter'
             ]
         }
     }
