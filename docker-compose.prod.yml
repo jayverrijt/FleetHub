@@ -7,9 +7,9 @@ services:
     container_name: fleethub-npm
     restart: unless-stopped
     ports:
-      - '80:80'     # HTTP verkeer
-      - '81:81'     # NPM Beheerdersinterface (Web UI)
-      - '443:443'   # HTTPS (SSL)
+      - '80:80'
+      - '81:81'
+      - '443:443'
     volumes:
       - ./npm/data:/data
       - ./npm/letsencrypt:/etc/letsencrypt
@@ -17,7 +17,7 @@ services:
       - fleethub-net
 
   # ==========================================
-  # TESTING ENVIRONMENT (Branch: feature/**)
+  # TESTING ENVIRONMENT (feature/** branches)
   # ==========================================
   mysql-test:
     image: mysql:8.0
@@ -36,9 +36,11 @@ services:
     container_name: fleethub-api-test
     restart: unless-stopped
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-test:3306/fleethub_test?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-test:3306/fleethub_test?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: test_root_password
+      JWT_SECRET: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+      JWT_EXPIRATION: "86400000"
     depends_on:
       - mysql-test
     networks:
@@ -52,7 +54,7 @@ services:
       - fleethub-net
 
   # ==========================================
-  # PRODUCTION ENVIRONMENT (Branch: production)
+  # PRODUCTION ENVIRONMENT (production branch)
   # ==========================================
   mysql-prod:
     image: mysql:8.0
@@ -71,9 +73,11 @@ services:
     container_name: fleethub-api-prod
     restart: unless-stopped
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-prod:3306/fleethub_prod?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-prod:3306/fleethub_prod?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: prod_root_password
+      JWT_SECRET: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+      JWT_EXPIRATION: "86400000"
     depends_on:
       - mysql-prod
     networks:
