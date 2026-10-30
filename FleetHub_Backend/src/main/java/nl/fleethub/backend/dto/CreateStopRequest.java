@@ -2,34 +2,47 @@ package nl.fleethub.backend.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import nl.fleethub.backend.model.StopStatus;
 
 public class CreateStopRequest {
 
-    @NotNull(message = "routeId is verplicht")
     private Long routeId;
 
-    @NotNull(message = "driverId is verplicht")
+    @NotNull(message = "Driver ID is mandatory")
     private Long driverId;
 
-    @NotBlank(message = "orderNumber is verplicht")
+    @NotBlank(message = "Order number is mandatory")
     private String orderNumber;
 
-    @NotBlank(message = "recipientName is verplicht")
+    @NotBlank(message = "Recipient name is mandatory")
     private String recipientName;
 
-    @NotNull(message = "sequenceOrder is verplicht")
+    @NotNull(message = "Sequence order is mandatory")
+    @Positive(message = "Sequence order must be positive")
     private Integer sequenceOrder;
 
-    @NotBlank(message = "address is verplicht")
+    @NotBlank(message = "Address is mandatory")
     private String address;
 
-    @NotBlank(message = "city is verplicht")
+    @NotBlank(message = "City is mandatory")
     private String city;
 
-    private StopStatus status = StopStatus.PENDING;
+    private StopStatus status;
 
     public CreateStopRequest() {}
+
+    public CreateStopRequest(Long routeId, Long driverId, String orderNumber, String recipientName,
+                             Integer sequenceOrder, String address, String city, StopStatus status) {
+        this.routeId = routeId;
+        this.driverId = driverId;
+        this.orderNumber = orderNumber;
+        this.recipientName = recipientName;
+        this.sequenceOrder = sequenceOrder;
+        this.address = address;
+        this.city = city;
+        this.status = status;
+    }
 
     public Long getRouteId() { return routeId; }
     public void setRouteId(Long routeId) { this.routeId = routeId; }

@@ -36,7 +36,7 @@ jobs:
           ./gradlew compileJava compileTestJava --no-daemon
           ./gradlew check -x compileJava -x compileTestJava --no-daemon
 
-      # SonarCloud Analyse met uitsluitingen voor DTO's en boilerplate
+      # SonarCloud Analyse met hybride kwaliteitsnormen
       - name: Code Quality & Coverage Analysis (SonarCloud)
         uses: SonarSource/sonarqube-scan-action@v4
         env:
@@ -51,8 +51,8 @@ jobs:
             -Dsonar.tests=FleetHub_Backend/src/test/java
             -Dsonar.java.binaries=FleetHub_Backend/build/classes/java/main
             -Dsonar.coverage.jacoco.xmlReportPaths=FleetHub_Backend/build/reports/jacoco/test/jacocoTestReport.xml
-            -Dsonar.coverage.exclusions=**/BackendApplication.java,**/dto/**,**/model/**,**/repository/**,**/security/**
-            -Dsonar.cpd.exclusions=**/dto/**,**/model/**
+            -Dsonar.coverage.exclusions=**/BackendApplication.java,**/model/**
+            -Dsonar.cpd.exclusions=**/model/**
 
       - if: always()
         uses: actions/upload-artifact@v4
@@ -117,6 +117,7 @@ jobs:
           files: ./release/*.jar
           draft: false
           prerelease: false
+
   deploy-to-vps:
     name: 3. CD - Deploy to VPS
     needs: build-and-test
@@ -181,7 +182,7 @@ jobs:
           sleep 10
           rm -f vpn-auth.txt
 
-      # Upload het productie-compose bestand automatisch naar ~/docker-compose.prod.yml op de VPS
+      # Sync docker-compose.prod.yml direct naar de VPS home directory
       - name: Sync docker-compose.prod.yml to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -202,9 +203,7 @@ jobs:
           script: |
             cd ~
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            # Start NPM en databases
             docker compose -f docker-compose.prod.yml up -d nginx-proxy-manager mysql-test mysql-prod
-            # Pull en herstart de bijbehorende frontend en backend containers
             docker compose -f docker-compose.prod.yml pull ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
             docker compose -f docker-compose.prod.yml up -d --no-deps ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
             docker image prune -f
