@@ -67,8 +67,8 @@ public class VehicleService {
                 cleanedLicensePlate,
                 request.getModel().trim(),
                 initialStatus,
-                request.getBatteryCapacityKwh(),
-                request.getCurrentRangeKm(),
+                (int) request.getBatteryCapacityKwh(),
+                (int) request.getCurrentRangeKm(),
                 request.getAssignedDriverId()
         );
 

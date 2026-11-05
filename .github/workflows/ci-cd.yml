@@ -5,31 +5,36 @@ on:
     branches:
       - production
       - "feature/**"
+      - "functions/**"
+      - "feature-*"
   pull_request:
     branches:
       - production
 
 jobs:
   build-and-test:
-    name: 1. CI - Build & Test
+    name: 1. CI - Build, Test & Quality Scan
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./FleetHub_Backend
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      # Java Runtime & Backend Pipeline
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
           cache: 'gradle'
 
-      - run: chmod +x gradlew
-      - run: ./gradlew clean --no-daemon
-      - run: ./gradlew compileJava compileTestJava --no-daemon
-      - run: ./gradlew check -x compileJava -x compileTestJava --no-daemon
+      - name: Build, Test & JaCoCo Coverage (Backend)
+        working-directory: ./FleetHub_Backend
+        run: |
+          chmod +x gradlew
+          ./gradlew clean --no-daemon
+          ./gradlew compileJava compileTestJava --no-daemon
+          ./gradlew check -x compileJava -x compileTestJava --no-daemon
 
       - if: always()
         uses: actions/upload-artifact@v4
@@ -44,6 +49,7 @@ jobs:
           path: FleetHub_Backend/build/reports/jacoco/test/html/
 
       - if: success()
+        working-directory: ./FleetHub_Backend
         run: ./gradlew bootJar -x test --no-daemon
 
       - if: success()
@@ -51,6 +57,54 @@ jobs:
         with:
           name: compiled-spring-jar
           path: FleetHub_Backend/build/libs/*.jar
+
+      # Node.js Runtime & Frontend Pipeline (Node 22 voor Vitest 5 / JSDOM 31)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Lint, Test & Build Frontend
+        working-directory: ./FleetHub_Frontend
+        env:
+          VITE_API_BASE_URL: ${{ github.ref_name == 'production' && 'http://10.69.0.48:8080/api' || 'http://10.69.0.48:8081/api' }}
+        run: |
+          npm ci
+          npm run lint
+          npm run test:unit
+          npm run build
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-report
+          path: FleetHub_Frontend/coverage/
+
+      - if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-frontend-dist
+          path: FleetHub_Frontend/dist/
+
+      # Gecombineerde SonarCloud Analyse (Java JaCoCo + Frontend LCOV)
+      - name: Code Quality & Coverage Analysis (SonarCloud)
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=jayverrijt_fleethub-backend
+            -Dsonar.projectName=FleetHub
+            -Dsonar.organization=jayverrijt
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.sources=FleetHub_Backend/src/main/java,FleetHub_Frontend/src
+            -Dsonar.tests=FleetHub_Backend/src/test/java,FleetHub_Frontend/src
+            -Dsonar.test.inclusions=**/*.test.js,**/*.test.jsx,**/*Test.java
+            -Dsonar.java.binaries=FleetHub_Backend/build/classes/java/main
+            -Dsonar.coverage.jacoco.xmlReportPaths=FleetHub_Backend/build/reports/jacoco/test/jacocoTestReport.xml
+            -Dsonar.javascript.lcov.reportPaths=FleetHub_Frontend/coverage/lcov.info
+            -Dsonar.coverage.exclusions=**/BackendApplication.java,**/dto/**,**/model/**,**/config/**,FleetHub_Frontend/src/main.jsx,FleetHub_Frontend/dist/**
+            -Dsonar.cpd.exclusions=**/dto/**,**/model/**
 
   github-release:
     name: 2. Create GitHub Release (Production Only)
@@ -94,14 +148,21 @@ jobs:
           name: compiled-spring-jar
           path: FleetHub_Backend/build/libs/
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: built-frontend-dist
+          path: FleetHub_Frontend/dist/
+
       - id: env-targets
         run: |
           if [ "${{ github.ref_name }}" = "production" ]; then
             echo "DOCKER_TAG=prod" >> $GITHUB_OUTPUT
-            echo "COMPOSE_SERVICE=backend-prod" >> $GITHUB_OUTPUT
+            echo "BE_SERVICE=backend-prod" >> $GITHUB_OUTPUT
+            echo "FE_SERVICE=frontend-prod" >> $GITHUB_OUTPUT
           else
             echo "DOCKER_TAG=test" >> $GITHUB_OUTPUT
-            echo "COMPOSE_SERVICE=backend-test" >> $GITHUB_OUTPUT
+            echo "BE_SERVICE=backend-test" >> $GITHUB_OUTPUT
+            echo "FE_SERVICE=frontend-test" >> $GITHUB_OUTPUT
           fi
 
       - uses: docker/login-action@v3
@@ -117,6 +178,13 @@ jobs:
           push: true
           tags: ghcr.io/jayverrijt/fleethub-backend:${{ steps.env-targets.outputs.DOCKER_TAG }}
 
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./FleetHub_Frontend
+          file: ./FleetHub_Frontend/Dockerfile
+          push: true
+          tags: ghcr.io/jayverrijt/fleethub-frontend:${{ steps.env-targets.outputs.DOCKER_TAG }}
+
       - name: Connect to Fontys Netlab OpenVPN
         run: |
           sudo apt-get update && sudo apt-get install -y openvpn
@@ -126,6 +194,16 @@ jobs:
           sudo openvpn --config client.ovpn --auth-user-pass vpn-auth.txt --daemon
           sleep 10
           rm -f vpn-auth.txt
+
+      - name: Sync docker-compose.prod.yml to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: "docker-compose.prod.yml"
+          target: "~"
 
       - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -137,6 +215,7 @@ jobs:
           script: |
             cd ~
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            docker compose pull ${{ steps.env-targets.outputs.COMPOSE_SERVICE }}
-            docker compose up -d --no-deps ${{ steps.env-targets.outputs.COMPOSE_SERVICE }}
+            docker compose -f docker-compose.prod.yml up -d mysql-test mysql-prod
+            docker compose -f docker-compose.prod.yml pull ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
+            docker compose -f docker-compose.prod.yml up -d --no-deps ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
             docker image prune -f

@@ -8,7 +8,9 @@ import java.util.Optional;
 
 public interface StopRepository {
     List<DeliveryStop> findActiveByDriverId(Long driverId);
+    List<DeliveryStop> findByRouteId(Long routeId);
     Optional<DeliveryStop> findById(Long id);
     DeliveryStop save(DeliveryStop stop);
     DeliveryStop updateStatus(Long id, StopStatus newStatus);
+    Optional<DeliveryStop> findByOrderNumber(String orderNumber);
 }

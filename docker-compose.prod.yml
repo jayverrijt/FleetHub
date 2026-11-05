@@ -1,0 +1,105 @@
+services:
+  # ==========================================
+  # TESTING ENVIRONMENT (feature/** branches)
+  # ==========================================
+  mysql-test:
+    image: mysql:8.0
+    container_name: fleethub-mysql-test
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: test_root_password
+      MYSQL_DATABASE: fleethub_test
+    volumes:
+      - mysql_test_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptest_root_password"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+    networks:
+      - fleethub-net
+
+  backend-test:
+    image: ghcr.io/jayverrijt/fleethub-backend:test
+    container_name: fleethub-api-test
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-test:3306/fleethub_test?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: test_root_password
+      JWT_SECRET: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+      JWT_EXPIRATION: "86400000"
+      APP_CORS_ALLOWED_ORIGINS: "http://10.69.0.48:3000,http://10.69.0.48,http://localhost:3000,http://localhost:5173"
+    depends_on:
+      mysql-test:
+        condition: service_healthy
+    networks:
+      - fleethub-net
+
+  frontend-test:
+    image: ghcr.io/jayverrijt/fleethub-frontend:test
+    container_name: fleethub-frontend-test
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    networks:
+      - fleethub-net
+
+  # ==========================================
+  # PRODUCTION ENVIRONMENT (production branch)
+  # ==========================================
+  mysql-prod:
+    image: mysql:8.0
+    container_name: fleethub-mysql-prod
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: prod_root_password
+      MYSQL_DATABASE: fleethub_prod
+    volumes:
+      - mysql_prod_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pprod_root_password"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+    networks:
+      - fleethub-net
+
+  backend-prod:
+    image: ghcr.io/jayverrijt/fleethub-backend:prod
+    container_name: fleethub-api-prod
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-prod:3306/fleethub_prod?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: prod_root_password
+      JWT_SECRET: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+      JWT_EXPIRATION: "86400000"
+      APP_CORS_ALLOWED_ORIGINS: "http://10.69.0.48,http://localhost:3000,http://localhost:5173"
+    depends_on:
+      mysql-prod:
+        condition: service_healthy
+    networks:
+      - fleethub-net
+
+  frontend-prod:
+    image: ghcr.io/jayverrijt/fleethub-frontend:prod
+    container_name: fleethub-frontend-prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - fleethub-net
+
+volumes:
+  mysql_test_data:
+  mysql_prod_data:
+
+networks:
+  fleethub-net:
+    name: fleethub-net
+    driver: bridge

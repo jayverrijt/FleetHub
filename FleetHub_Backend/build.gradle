@@ -1,7 +1,6 @@
 plugins {
     id 'java'
     id 'org.springframework.boot' version '3.3.4'
-    id 'io.spring.dependency-management' version '1.1.6'
     id 'jacoco'
 }
 
@@ -18,17 +17,37 @@ tasks.withType(JavaCompile).configureEach {
     options.release = 21
 }
 
-
 repositories {
     mavenCentral()
 }
 
 dependencies {
+    implementation platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
+
+    // Web & Validation
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // Data persistence & Database migraties (Flyway)
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-mysql'
     runtimeOnly 'com.mysql:mysql-connector-j'
 
+    // Spring Security & BCrypt (US1)
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // Websocket STOMP
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+    // JJWT (Java JWT)
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // Testing
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.mockito:mockito-subclass:5.14.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly 'com.h2database:h2'
@@ -48,6 +67,8 @@ tasks.named('test') {
             '-XX:+EnableDynamicAgentLoading',
             '-Dnet.bytebuddy.experimental=true'
     ])
+    // Voorkomt dat JaCoCo crasht op interne JDK 25 runtime-packages op macOS
+    systemProperty 'jacoco-agent.excludes', 'sun.*:jdk.*:org.gradle.*:com.sun.*'
     finalizedBy tasks.jacocoTestReport
 }
 
@@ -63,7 +84,9 @@ jacocoTestReport {
                     'nl/fleethub/backend/BackendApplication.class',
                     'nl/fleethub/backend/dto/**',
                     'nl/fleethub/backend/model/**',
-                    'nl/fleethub/backend/repository/**'
+                    'nl/fleethub/backend/repository/**',
+                    'nl/fleethub/backend/security/SecurityConfig.class',
+                    'nl/fleethub/backend/security/JwtAuthenticationFilter.class'
             ])
         }))
     }
@@ -77,13 +100,15 @@ jacocoTestCoverageVerification {
             limit {
                 counter = 'LINE'
                 value = 'COVEREDRATIO'
-                minimum = 0.80 // 80% minimale dekking op actieve services en controllers
+                minimum = 0.80
             }
             excludes = [
                     'nl.fleethub.backend.BackendApplication',
                     'nl.fleethub.backend.dto.*',
                     'nl.fleethub.backend.model.*',
-                    'nl.fleethub.backend.repository.*'
+                    'nl.fleethub.backend.repository.*',
+                    'nl.fleethub.backend.security.SecurityConfig',
+                    'nl.fleethub.backend.security.JwtAuthenticationFilter'
             ]
         }
     }

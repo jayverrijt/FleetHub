@@ -86,9 +86,48 @@ class VehicleServiceTest {
     }
 
     @Test
-    @DisplayName("UT-V05: Voertuig succesvol aanmaken met hoofdletters kenteken")
-    void createVehicle_Success() {
-        CreateVehicleRequest request = new CreateVehicleRequest("v-101-bb", "Mercedes-Benz eVito", VehicleStatus.AVAILABLE, 60, 240, null);
+    @DisplayName("UT-V05: Foutmelding gooien als chauffeur geen voertuig heeft")
+    void getVehicleByDriverId_NotFound() {
+        when(vehicleRepository.findByDriverId(999L)).thenReturn(Optional.empty());
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> vehicleService.getVehicleByDriverId(999L)
+        );
+
+        assertTrue(ex.getMessage().contains("No vehicle assigned to driver"));
+        verify(vehicleRepository, times(1)).findByDriverId(999L);
+    }
+
+    @Test
+    @DisplayName("UT-V06: Status van voertuig succesvol bijwerken")
+    void updateVehicleStatus_Success() {
+        Vehicle updated = new Vehicle(1L, "V-101-BB", "Mercedes-Benz eVito", VehicleStatus.MAINTENANCE, 60, 240, 101L);
+        when(vehicleRepository.updateStatus(1L, VehicleStatus.MAINTENANCE)).thenReturn(updated);
+
+        Vehicle result = vehicleService.updateVehicleStatus(1L, VehicleStatus.MAINTENANCE);
+
+        assertNotNull(result);
+        assertEquals(VehicleStatus.MAINTENANCE, result.getStatus());
+        verify(vehicleRepository, times(1)).updateStatus(1L, VehicleStatus.MAINTENANCE);
+    }
+
+    @Test
+    @DisplayName("UT-V07: Foutmelding wanneer status null is bij update")
+    void updateVehicleStatus_NullStatus_ThrowsException() {
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> vehicleService.updateVehicleStatus(1L, null)
+        );
+
+        assertEquals("Status cannot be null", ex.getMessage());
+        verify(vehicleRepository, never()).updateStatus(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("UT-V08: Voertuig succesvol aanmaken met hoofdletters kenteken en standaard status")
+    void createVehicle_Success_DefaultStatus() {
+        CreateVehicleRequest request = new CreateVehicleRequest("v-101-bb", "Mercedes-Benz eVito", null, 60, 240, null);
 
         when(vehicleRepository.findByLicensePlate("V-101-BB")).thenReturn(Optional.empty());
         when(vehicleRepository.save(any(Vehicle.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -102,10 +141,39 @@ class VehicleServiceTest {
     }
 
     @Test
-    @DisplayName("UT-V06: Voertuig creatie weigeren bij duplicaat kenteken")
-    void createVehicle_ThrowsException_WhenDuplicatePlate() {
-        CreateVehicleRequest request = new CreateVehicleRequest("V-101-BB", "Mercedes-Benz eVito", VehicleStatus.AVAILABLE, 60, 240, null);
+    @DisplayName("UT-V09: Voertuig creatie weigeren bij null of leeg kenteken")
+    void createVehicle_InvalidLicensePlate_ThrowsException() {
+        CreateVehicleRequest nullPlate = new CreateVehicleRequest(null, "eVito", VehicleStatus.AVAILABLE, 60, 240, null);
+        assertThrows(IllegalArgumentException.class, () -> vehicleService.createVehicle(nullPlate));
 
+        CreateVehicleRequest blankPlate = new CreateVehicleRequest("   ", "eVito", VehicleStatus.AVAILABLE, 60, 240, null);
+        assertThrows(IllegalArgumentException.class, () -> vehicleService.createVehicle(blankPlate));
+    }
+
+    @Test
+    @DisplayName("UT-V10: Voertuig creatie weigeren bij null of leeg model")
+    void createVehicle_InvalidModel_ThrowsException() {
+        CreateVehicleRequest nullModel = new CreateVehicleRequest("V-101-BB", null, VehicleStatus.AVAILABLE, 60, 240, null);
+        assertThrows(IllegalArgumentException.class, () -> vehicleService.createVehicle(nullModel));
+
+        CreateVehicleRequest blankModel = new CreateVehicleRequest("V-101-BB", "   ", VehicleStatus.AVAILABLE, 60, 240, null);
+        assertThrows(IllegalArgumentException.class, () -> vehicleService.createVehicle(blankModel));
+    }
+
+    @Test
+    @DisplayName("UT-V11: Voertuig creatie weigeren bij ongeldige batterij of actieradius")
+    void createVehicle_InvalidBatteryOrRange_ThrowsException() {
+        CreateVehicleRequest negativeRange = new CreateVehicleRequest("V-101-BB", "eVito", VehicleStatus.AVAILABLE, 60, -1, null);
+        assertThrows(IllegalArgumentException.class, () -> vehicleService.createVehicle(negativeRange));
+
+        CreateVehicleRequest zeroBattery = new CreateVehicleRequest("V-101-BB", "eVito", VehicleStatus.AVAILABLE, 0, 100, null);
+        assertThrows(IllegalArgumentException.class, () -> vehicleService.createVehicle(zeroBattery));
+    }
+
+    @Test
+    @DisplayName("UT-V12: Voertuig creatie weigeren bij duplicaat kenteken")
+    void createVehicle_DuplicatePlate_ThrowsException() {
+        CreateVehicleRequest request = new CreateVehicleRequest("V-101-BB", "Mercedes-Benz eVito", VehicleStatus.AVAILABLE, 60, 240, null);
         when(vehicleRepository.findByLicensePlate("V-101-BB")).thenReturn(Optional.of(sampleVehicle));
 
         IllegalArgumentException ex = assertThrows(
@@ -115,32 +183,5 @@ class VehicleServiceTest {
 
         assertTrue(ex.getMessage().contains("already exists"));
         verify(vehicleRepository, never()).save(any(Vehicle.class));
-    }
-
-    @Test
-    @DisplayName("UT-V07: Voertuig creatie weigeren bij ongeldige batterij of range")
-    void createVehicle_ThrowsException_WhenInvalidMetrics() {
-        CreateVehicleRequest request = new CreateVehicleRequest("V-999-ZZ", "Test Van", VehicleStatus.AVAILABLE, 0, -10, null);
-
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> vehicleService.createVehicle(request)
-        );
-
-        assertEquals("Battery capacity and range must be positive numbers", ex.getMessage());
-        verify(vehicleRepository, never()).save(any(Vehicle.class));
-    }
-
-    @Test
-    @DisplayName("UT-V08: Status van voertuig succesvol bijwerken")
-    void updateVehicleStatus_Success() {
-        Vehicle updated = new Vehicle(1L, "V-101-BB", "Mercedes-Benz eVito", VehicleStatus.MAINTENANCE, 60, 240, 101L);
-        when(vehicleRepository.updateStatus(1L, VehicleStatus.MAINTENANCE)).thenReturn(updated);
-
-        Vehicle result = vehicleService.updateVehicleStatus(1L, VehicleStatus.MAINTENANCE);
-
-        assertNotNull(result);
-        assertEquals(VehicleStatus.MAINTENANCE, result.getStatus());
-        verify(vehicleRepository, times(1)).updateStatus(1L, VehicleStatus.MAINTENANCE);
     }
 }
