@@ -58,10 +58,10 @@ jobs:
           name: compiled-spring-jar
           path: FleetHub_Backend/build/libs/*.jar
 
-      # Node.js Runtime & Frontend Pipeline
+      # Node.js Runtime & Frontend Pipeline (Node 22 voor Vitest 5 / JSDOM 31)
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Lint, Test & Build Frontend
         working-directory: ./FleetHub_Frontend
@@ -178,7 +178,8 @@ jobs:
           push: true
           tags: ghcr.io/jayverrijt/fleethub-backend:${{ steps.env-targets.outputs.DOCKER_TAG }}
 
-      - uses: docker/build-push-action@v5
+      - docker/build-push-action@v5
+        uses: docker/build-push-action@v5
         with:
           context: ./FleetHub_Frontend
           file: ./FleetHub_Frontend/Dockerfile
@@ -215,9 +216,7 @@ jobs:
           script: |
             cd ~
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            # Start MySQL databases met healthchecks
             docker compose -f docker-compose.prod.yml up -d mysql-test mysql-prod
-            # Pull en herstart containers
             docker compose -f docker-compose.prod.yml pull ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
             docker compose -f docker-compose.prod.yml up -d --no-deps ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
             docker image prune -f
