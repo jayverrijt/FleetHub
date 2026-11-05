@@ -3,13 +3,13 @@ name: FleetHub CI/CD
 on:
   push:
     branches:
-      - production
+      - main
       - "feature/**"
       - "functions/**"
       - "feature-*"
   pull_request:
     branches:
-      - production
+      - main
 
 jobs:
   build-and-test:
