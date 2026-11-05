@@ -36,23 +36,6 @@ jobs:
           ./gradlew compileJava compileTestJava --no-daemon
           ./gradlew check -x compileJava -x compileTestJava --no-daemon
 
-      - name: Code Quality & Coverage Analysis (SonarCloud)
-        uses: SonarSource/sonarqube-scan-action@v4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.projectKey=jayverrijt_fleethub-backend
-            -Dsonar.organization=jayverrijt
-            -Dsonar.host.url=https://sonarcloud.io
-            -Dsonar.sources=FleetHub_Backend/src/main/java
-            -Dsonar.tests=FleetHub_Backend/src/test/java
-            -Dsonar.java.binaries=FleetHub_Backend/build/classes/java/main
-            -Dsonar.coverage.jacoco.xmlReportPaths=FleetHub_Backend/build/reports/jacoco/test/jacocoTestReport.xml
-            -Dsonar.coverage.exclusions=**/BackendApplication.java,**/model/**
-            -Dsonar.cpd.exclusions=**/model/**
-
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -80,20 +63,48 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Build React Frontend
+      - name: Lint, Test & Build Frontend
         working-directory: ./FleetHub_Frontend
         env:
-          # Bakt het IP en de backend-poort in tijdens build
           VITE_API_BASE_URL: ${{ github.ref_name == 'production' && 'http://10.69.0.48:8080/api' || 'http://10.69.0.48:8081/api' }}
         run: |
           npm ci
+          npm run lint
+          npm run test:unit
           npm run build
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-report
+          path: FleetHub_Frontend/coverage/
 
       - if: success()
         uses: actions/upload-artifact@v4
         with:
           name: built-frontend-dist
           path: FleetHub_Frontend/dist/
+
+      # Gecombineerde SonarCloud Analyse (Java JaCoCo + Frontend LCOV)
+      - name: Code Quality & Coverage Analysis (SonarCloud)
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=jayverrijt_fleethub-backend
+            -Dsonar.projectName=FleetHub
+            -Dsonar.organization=jayverrijt
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.sources=FleetHub_Backend/src/main/java,FleetHub_Frontend/src
+            -Dsonar.tests=FleetHub_Backend/src/test/java,FleetHub_Frontend/src
+            -Dsonar.test.inclusions=**/*.test.js,**/*.test.jsx,**/*Test.java
+            -Dsonar.java.binaries=FleetHub_Backend/build/classes/java/main
+            -Dsonar.coverage.jacoco.xmlReportPaths=FleetHub_Backend/build/reports/jacoco/test/jacocoTestReport.xml
+            -Dsonar.javascript.lcov.reportPaths=FleetHub_Frontend/coverage/lcov.info
+            -Dsonar.coverage.exclusions=**/BackendApplication.java,**/dto/**,**/model/**,**/config/**,FleetHub_Frontend/src/main.jsx,FleetHub_Frontend/dist/**
+            -Dsonar.cpd.exclusions=**/dto/**,**/model/**
 
   github-release:
     name: 2. Create GitHub Release (Production Only)
