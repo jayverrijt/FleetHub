@@ -1,66 +1,5 @@
 services:
   # ==========================================
-  # REVERSE PROXY: APACHE (HTTPD)
-  # ==========================================
-  apache-proxy:
-    image: httpd:2.4-alpine
-    container_name: fleethub-apache
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    volumes:
-      - ./apache-proxy.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf:ro
-    # Schakel vhosts in en laad de nodige modules direct in httpd.conf
-    command: >
-      /bin/sh -c "
-      sed -i 's/#LoadModule proxy_module/LoadModule proxy_module/' conf/httpd.conf &&
-      sed -i 's/#LoadModule proxy_http_module/LoadModule proxy_http_module/' conf/httpd.conf &&
-      sed -i 's/#Include conf\\/extra\\/httpd-vhosts.conf/Include conf\\/extra\\/httpd-vhosts.conf/' conf/httpd.conf &&
-      httpd-foreground"
-    depends_on:
-      - frontend-prod
-      - backend-prod
-    networks:
-      - fleethub-net
-
-  # ==========================================
-  # PRODUCTION ENVIRONMENT
-  # ==========================================
-  mysql-prod:
-    image: mysql:8.0
-    container_name: fleethub-mysql-prod
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: prod_root_password
-      MYSQL_DATABASE: fleethub_prod
-    volumes:
-      - mysql_prod_data:/var/lib/mysql
-    networks:
-      - fleethub-net
-
-  backend-prod:
-    image: ghcr.io/jayverrijt/fleethub-backend:prod
-    container_name: fleethub-api-prod
-    restart: unless-stopped
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-prod:3306/fleethub_prod?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: prod_root_password
-      JWT_SECRET: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
-      JWT_EXPIRATION: "86400000"
-    depends_on:
-      - mysql-prod
-    networks:
-      - fleethub-net
-
-  frontend-prod:
-    image: ghcr.io/jayverrijt/fleethub-frontend:prod
-    container_name: fleethub-frontend-prod
-    restart: unless-stopped
-    networks:
-      - fleethub-net
-
-  # ==========================================
   # TESTING ENVIRONMENT (feature/** branches)
   # ==========================================
   mysql-test:
@@ -72,6 +11,11 @@ services:
       MYSQL_DATABASE: fleethub_test
     volumes:
       - mysql_test_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptest_root_password"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
     networks:
       - fleethub-net
 
@@ -87,8 +31,10 @@ services:
       SPRING_DATASOURCE_PASSWORD: test_root_password
       JWT_SECRET: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
       JWT_EXPIRATION: "86400000"
+      APP_CORS_ALLOWED_ORIGINS: "http://10.69.0.48:3000,http://10.69.0.48,http://localhost:3000,http://localhost:5173"
     depends_on:
-      - mysql-test
+      mysql-test:
+        condition: service_healthy
     networks:
       - fleethub-net
 
@@ -98,6 +44,54 @@ services:
     restart: unless-stopped
     ports:
       - "3000:80"
+    networks:
+      - fleethub-net
+
+  # ==========================================
+  # PRODUCTION ENVIRONMENT (production branch)
+  # ==========================================
+  mysql-prod:
+    image: mysql:8.0
+    container_name: fleethub-mysql-prod
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: prod_root_password
+      MYSQL_DATABASE: fleethub_prod
+    volumes:
+      - mysql_prod_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pprod_root_password"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+    networks:
+      - fleethub-net
+
+  backend-prod:
+    image: ghcr.io/jayverrijt/fleethub-backend:prod
+    container_name: fleethub-api-prod
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-prod:3306/fleethub_prod?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: prod_root_password
+      JWT_SECRET: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+      JWT_EXPIRATION: "86400000"
+      APP_CORS_ALLOWED_ORIGINS: "http://10.69.0.48,http://localhost:3000,http://localhost:5173"
+    depends_on:
+      mysql-prod:
+        condition: service_healthy
+    networks:
+      - fleethub-net
+
+  frontend-prod:
+    image: ghcr.io/jayverrijt/fleethub-frontend:prod
+    container_name: fleethub-frontend-prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
     networks:
       - fleethub-net
 
