@@ -59,6 +59,7 @@ public class SecurityConfig {
                         // 1. Publiek toegankelijk (zonder inloggen)
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/tracking/**").permitAll()
+                        .requestMatchers("/ws/fleet/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // 2. Chauffeur (InDrive stops en chauffeursroutes)

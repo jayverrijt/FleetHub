@@ -1,20 +1,26 @@
 import { useState, useEffect } from 'react';
 import { fetchDriverRoutes, fetchStopsForRoute, updateStopStatus } from '../services/stopService';
 import RouteMap from '../components/RouteMap';
+import { useDriverLocationBroadcaster } from '../hooks/useDriverLocationBroadcaster';
 
 export default function RouteView({ currentUser }) {
-    const [currentScreen, setCurrentScreen] = useState('ROUTES');
-    const [viewMode, setViewMode] = useState('LIST');
+    const [currentScreen, setCurrentScreen] = useState('ROUTES'); // 'ROUTES', 'STOPS', 'DELIVERY'
+    const [viewMode, setViewMode] = useState('LIST'); // 'LIST' of 'MAP'
     const [routes, setRoutes] = useState([]);
     const [selectedRoute, setSelectedRoute] = useState(null);
     const [stops, setStops] = useState([]);
     const [activeStop, setActiveStop] = useState(null);
     const [isTripStarted, setIsTripStarted] = useState(false);
-    // Begint direct op true zodat er geen synchrone setState in het effect nodig is
     const [loading, setLoading] = useState(true);
 
-    const driverId = currentUser?.userId || 1;
+    const driverId = currentUser?.userId || currentUser?.id || 1;
     const driverName = currentUser?.fullName || 'Jan de Vries';
+
+    // Controleer of de geselecteerde route al IN_PROGRESS is
+    const isRouteInProgress = selectedRoute?.status === 'IN_PROGRESS';
+
+    // US3a: Broadcast automatisch zodra de rit lokaal gestart/hervat is
+    const { isConnected, lastPosition, geoError } = useDriverLocationBroadcaster(isTripStarted);
 
     useEffect(() => {
         let isMounted = true;
@@ -66,7 +72,7 @@ export default function RouteView({ currentUser }) {
 
     const handleStatusChange = async (newStatus) => {
         if (!isTripStarted) {
-            alert('Start eerst de rit voordat je stops kunt afronden.');
+            alert('Start of hervat eerst de rit voordat je stops kunt afronden.');
             return;
         }
         if (!activeStop) return;
@@ -80,7 +86,7 @@ export default function RouteView({ currentUser }) {
             if (nextPending) {
                 setActiveStop(nextPending);
             } else {
-                alert('Alle stops van deze route zijn voltooid.');
+                alert('Gefeliciteerd! Alle stops van deze route zijn voltooid.');
                 setCurrentScreen('STOPS');
             }
         } catch (err) {
@@ -90,7 +96,7 @@ export default function RouteView({ currentUser }) {
 
     const handleCardClick = (stop) => {
         if (!isTripStarted) {
-            alert('Start eerst de rit via de knop onderaan om stops te openen.');
+            alert('Start of hervat eerst de rit via de knop onderaan om stops te openen.');
             return;
         }
         setActiveStop(stop);
@@ -114,17 +120,40 @@ export default function RouteView({ currentUser }) {
             {/* Topbar */}
             <header className="flex justify-between items-center px-4 py-3 bg-slate-950 border-b border-slate-800">
                 <div className="flex items-center gap-2">
-          <span className="bg-blue-600 text-white font-extrabold text-[11px] px-2 py-0.5 rounded">
-            INDRIVE
-          </span>
+                    <span className="bg-blue-600 text-white font-extrabold text-[11px] px-2 py-0.5 rounded">
+                        INDRIVE
+                    </span>
                     <span className="font-semibold text-xs sm:text-sm text-slate-200">
-            {selectedRoute ? selectedRoute.name : 'Chauffeursportaal'}
-          </span>
+                        {selectedRoute ? selectedRoute.name : 'Chauffeursportaal'}
+                    </span>
                 </div>
                 <span className="text-xs font-semibold text-blue-400">
-          {driverName}
-        </span>
+                    {driverName}
+                </span>
             </header>
+
+            {/* US3a: Live GPS Statusbalk */}
+            {isTripStarted && (
+                <div className="flex items-center justify-between px-4 py-2 bg-slate-950/80 border-b border-slate-800 text-[11px]">
+                    <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                        <span className="font-medium text-slate-300">
+                            {isConnected ? 'GPS Live Streaming' : 'GPS Offline'}
+                        </span>
+                    </div>
+                    {lastPosition && (
+                        <span className="text-slate-400 text-[10px]">
+                            {lastPosition.latitude.toFixed(4)}, {lastPosition.longitude.toFixed(4)} • {Math.round((lastPosition.speed || 0) * 3.6)} km/u
+                        </span>
+                    )}
+                </div>
+            )}
+
+            {geoError && isTripStarted && (
+                <div className="px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-amber-300 text-[11px]">
+                    ⚠️ Locatiefout: {geoError}
+                </div>
+            )}
 
             {/* 1. ROUTESELECTIE */}
             {currentScreen === 'ROUTES' && (
@@ -147,9 +176,9 @@ export default function RouteView({ currentUser }) {
                                     className="bg-slate-950 border border-slate-800 hover:border-blue-500 rounded-xl p-4 cursor-pointer transition-all hover:-translate-y-0.5"
                                 >
                                     <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded">
-                      {r.status || 'GEPLAND'}
-                    </span>
+                                        <span className="text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded">
+                                            {r.status || 'GEPLAND'}
+                                        </span>
                                         <span className="text-xs text-slate-400">ID: #{r.id}</span>
                                     </div>
                                     <h3 className="text-sm font-semibold text-white mb-1">{r.name}</h3>
@@ -196,9 +225,15 @@ export default function RouteView({ currentUser }) {
                         <div className={`p-2.5 rounded-lg text-xs text-center border font-medium ${
                             isTripStarted
                                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                                : 'bg-blue-500/10 border-blue-500/30 text-blue-300'
+                                : isRouteInProgress
+                                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                                    : 'bg-blue-500/10 border-blue-500/30 text-blue-300'
                         }`}>
-                            {isTripStarted ? '● Rit is actief' : 'Rit is nog niet gestart. Start hieronder om stops te openen.'}
+                            {isTripStarted
+                                ? '● Rit is actief'
+                                : isRouteInProgress
+                                    ? 'Route is al gestart. Druk op Continue om verder te gaan.'
+                                    : 'Rit is nog niet gestart. Start hieronder om stops te openen.'}
                         </div>
 
                         {loading ? (
@@ -220,12 +255,12 @@ export default function RouteView({ currentUser }) {
                                             }`}
                                         >
                                             <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs font-bold text-blue-400">
-                          Stop #{stop.sequenceOrder ?? index + 1}
-                        </span>
+                                                <span className="text-xs font-bold text-blue-400">
+                                                    Stop #{stop.sequenceOrder ?? index + 1}
+                                                </span>
                                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusBadgeClass(stop.status)}`}>
-                          {stop.status}
-                        </span>
+                                                    {stop.status}
+                                                </span>
                                             </div>
                                             <div className="text-sm font-semibold text-white">{stop.recipientName}</div>
                                             <div className="text-xs text-slate-400 mt-0.5">{stop.address}, {stop.city}</div>
@@ -237,6 +272,7 @@ export default function RouteView({ currentUser }) {
                             <div className="h-80 rounded-xl overflow-hidden border border-slate-800">
                                 <RouteMap
                                     stops={stops}
+                                    activeStop={activeStop}
                                     onSelectStop={(stop) => {
                                         if (isTripStarted) {
                                             setActiveStop(stop);
@@ -255,7 +291,7 @@ export default function RouteView({ currentUser }) {
                                 onClick={handleStartTrip}
                                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition-colors"
                             >
-                                Start Rit
+                                {isRouteInProgress ? 'Continue' : 'Start Rit'}
                             </button>
                         ) : (
                             <button
@@ -286,12 +322,12 @@ export default function RouteView({ currentUser }) {
 
                         <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 mb-4">
                             <div className="flex justify-between items-center mb-3">
-                <span className="text-xs font-bold text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-md border border-blue-500/20">
-                  Stop #{activeStop.sequenceOrder}
-                </span>
+                                <span className="text-xs font-bold text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-md border border-blue-500/20">
+                                    Stop #{activeStop.sequenceOrder}
+                                </span>
                                 <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${getStatusBadgeClass(activeStop.status)}`}>
-                  {activeStop.status}
-                </span>
+                                    {activeStop.status}
+                                </span>
                             </div>
 
                             <h2 className="text-lg font-bold text-white mb-0.5">{activeStop.recipientName}</h2>
