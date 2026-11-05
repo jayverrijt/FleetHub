@@ -11,13 +11,12 @@ export function useDriverLocationBroadcaster(isStreamingActive = true) {
     useEffect(() => {
         if (!isStreamingActive) {
             disconnectTelemetrySocket();
-            setIsConnected(false);
             return;
         }
 
         const currentUser = getCurrentUser() || { id: 1, fullName: 'Jan de Vries' };
 
-        // 1. Initialiseer WebSocket verbinding
+        // 1. Initialiseer WebSocket verbinding via callbacks
         initTelemetrySocket(
             () => setIsConnected(true),
             () => setIsConnected(false)
@@ -25,16 +24,15 @@ export function useDriverLocationBroadcaster(isStreamingActive = true) {
 
         // 2. Start HTML5 Geolocation API watcher
         if (!navigator.geolocation) {
-            setGeoError('Geolocation API wordt niet ondersteund door deze browser.');
             return;
         }
 
         const handleSuccess = (position) => {
             const { latitude, longitude, speed, heading } = position.coords;
             const payload = {
-                driverId: currentUser.id || 1,
+                driverId: currentUser.userId || currentUser.id || 1,
                 driverName: currentUser.fullName || 'Chauffeur',
-                vehicleId: 1, // Gekoppeld voertuig
+                vehicleId: 1,
                 latitude,
                 longitude,
                 speed: speed || 0,
@@ -45,7 +43,6 @@ export function useDriverLocationBroadcaster(isStreamingActive = true) {
             setLastPosition(payload);
             setGeoError(null);
 
-            // Stream live coördinaten direct over WebSocket
             sendDriverLocation(payload);
         };
 
@@ -69,6 +66,7 @@ export function useDriverLocationBroadcaster(isStreamingActive = true) {
                 navigator.geolocation.clearWatch(watchIdRef.current);
             }
             disconnectTelemetrySocket();
+            setIsConnected(false);
         };
     }, [isStreamingActive]);
 
