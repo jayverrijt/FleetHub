@@ -36,7 +36,6 @@ jobs:
           ./gradlew compileJava compileTestJava --no-daemon
           ./gradlew check -x compileJava -x compileTestJava --no-daemon
 
-      # SonarCloud Analyse met hybride kwaliteitsnormen
       - name: Code Quality & Coverage Analysis (SonarCloud)
         uses: SonarSource/sonarqube-scan-action@v4
         env:
@@ -182,15 +181,15 @@ jobs:
           sleep 10
           rm -f vpn-auth.txt
 
-      # Sync docker-compose.prod.yml direct naar de VPS home directory
-      - name: Sync docker-compose.prod.yml to VPS
+      # Sync configuraties naar VPS
+      - name: Sync compose and apache config to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          source: "docker-compose.prod.yml"
+          source: "docker-compose.prod.yml,apache-proxy.conf"
           target: "~"
 
       - name: Deploy to VPS via SSH
@@ -203,8 +202,12 @@ jobs:
           script: |
             cd ~
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            docker compose -f docker-compose.prod.yml up -d nginx-proxy-manager mysql-test mysql-prod
+            # Stop en ruim eventuele oude NPM container op
+            docker stop fleethub-npm 2>/dev/null || true
+            docker rm fleethub-npm 2>/dev/null || true
+            # Start reverse proxy en databases
+            docker compose -f docker-compose.prod.yml up -d apache-proxy mysql-test mysql-prod
+            # Pull en herstart specifieke services
             docker compose -f docker-compose.prod.yml pull ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
             docker compose -f docker-compose.prod.yml up -d --no-deps ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
             docker image prune -f
-

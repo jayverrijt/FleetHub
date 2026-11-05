@@ -1,60 +1,30 @@
 services:
   # ==========================================
-  # REVERSE PROXY: NGINX PROXY MANAGER
+  # REVERSE PROXY: APACHE (HTTPD)
   # ==========================================
-  nginx-proxy-manager:
-    image: 'jc21/nginx-proxy-manager:latest'
-    container_name: fleethub-npm
+  apache-proxy:
+    image: httpd:2.4-alpine
+    container_name: fleethub-apache
     restart: unless-stopped
     ports:
-      - '80:80'
-      - '81:81'
-      - '443:443'
+      - "80:80"
     volumes:
-      - ./npm/data:/data
-      - ./npm/letsencrypt:/etc/letsencrypt
-    networks:
-      - fleethub-net
-
-  # ==========================================
-  # TESTING ENVIRONMENT (feature/** branches)
-  # ==========================================
-  mysql-test:
-    image: mysql:8.0
-    container_name: fleethub-mysql-test
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: test_root_password
-      MYSQL_DATABASE: fleethub_test
-    volumes:
-      - mysql_test_data:/var/lib/mysql
-    networks:
-      - fleethub-net
-
-  backend-test:
-    image: ghcr.io/jayverrijt/fleethub-backend:test
-    container_name: fleethub-api-test
-    restart: unless-stopped
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-test:3306/fleethub_test?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: test_root_password
-      JWT_SECRET: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
-      JWT_EXPIRATION: "86400000"
+      - ./apache-proxy.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf:ro
+    # Schakel vhosts in en laad de nodige modules direct in httpd.conf
+    command: >
+      /bin/sh -c "
+      sed -i 's/#LoadModule proxy_module/LoadModule proxy_module/' conf/httpd.conf &&
+      sed -i 's/#LoadModule proxy_http_module/LoadModule proxy_http_module/' conf/httpd.conf &&
+      sed -i 's/#Include conf\\/extra\\/httpd-vhosts.conf/Include conf\\/extra\\/httpd-vhosts.conf/' conf/httpd.conf &&
+      httpd-foreground"
     depends_on:
-      - mysql-test
-    networks:
-      - fleethub-net
-
-  frontend-test:
-    image: ghcr.io/jayverrijt/fleethub-frontend:test
-    container_name: fleethub-frontend-test
-    restart: unless-stopped
+      - frontend-prod
+      - backend-prod
     networks:
       - fleethub-net
 
   # ==========================================
-  # PRODUCTION ENVIRONMENT (production branch)
+  # PRODUCTION ENVIRONMENT
   # ==========================================
   mysql-prod:
     image: mysql:8.0
@@ -90,6 +60,47 @@ services:
     networks:
       - fleethub-net
 
+  # ==========================================
+  # TESTING ENVIRONMENT (feature/** branches)
+  # ==========================================
+  mysql-test:
+    image: mysql:8.0
+    container_name: fleethub-mysql-test
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: test_root_password
+      MYSQL_DATABASE: fleethub_test
+    volumes:
+      - mysql_test_data:/var/lib/mysql
+    networks:
+      - fleethub-net
+
+  backend-test:
+    image: ghcr.io/jayverrijt/fleethub-backend:test
+    container_name: fleethub-api-test
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-test:3306/fleethub_test?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: test_root_password
+      JWT_SECRET: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+      JWT_EXPIRATION: "86400000"
+    depends_on:
+      - mysql-test
+    networks:
+      - fleethub-net
+
+  frontend-test:
+    image: ghcr.io/jayverrijt/fleethub-frontend:test
+    container_name: fleethub-frontend-test
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    networks:
+      - fleethub-net
+
 volumes:
   mysql_test_data:
   mysql_prod_data:
@@ -98,4 +109,3 @@ networks:
   fleethub-net:
     name: fleethub-net
     driver: bridge
-
