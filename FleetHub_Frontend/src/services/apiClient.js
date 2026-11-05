@@ -1,6 +1,7 @@
 import { logout } from './authService';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+// Leest de base URL in vanuit de Vite build, met automatische fallback naar de VPS testomgeving
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://10.69.0.48:8081/api';
 
 export async function handleApiResponse(response, defaultErrorMessage = 'Netwerkverzoek mislukt') {
     if (response.status === 401 || response.status === 403) {
