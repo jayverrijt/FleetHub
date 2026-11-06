@@ -85,26 +85,42 @@ jobs:
 
       - name: Connect to Fontys Netlab OpenVPN
         run: |
-          sudo apt-get update && sudo apt-get install -y openvpn curl iproute2
+          sudo apt-get install -y openvpn iproute2 curl
           echo "${{ secrets.OPENVPN_USER }}" > vpn-auth.txt
           echo "${{ secrets.OPENVPN_PASSWORD }}" >> vpn-auth.txt
           echo "${{ secrets.OPENVPN_CONFIG }}" > client.ovpn
-          sudo openvpn --config client.ovpn --auth-user-pass vpn-auth.txt --tun-mtu 1500 --mssfix 1400 --daemon
-          
-          for i in {1..20}; do
-            if ip a show dev tun0 up >/dev/null 2>&1; then
+
+          sudo openvpn --config client.ovpn --auth-user-pass vpn-auth.txt --tun-mtu 1500 --mssfix 1400 --log /tmp/openvpn.log --daemon
+
+          echo "Wachten op OpenVPN tun0 interface..."
+          CONNECTED=false
+          for i in {1..15}; do
+            if ip link show dev tun0 up >/dev/null 2>&1; then
+              echo "OpenVPN interface tun0 is UP!"
+              CONNECTED=true
               break
             fi
             sleep 1
           done
-          
-          sudo ip route add 10.69.0.0/16 dev tun0 || true
-          
-          curl -s --connect-timeout 5 http://10.69.0.48:9000/api/v2/analysis/version || {
-            echo "FOUT: Kan SonarQube niet bereiken op 10.69.0.48:9000 via VPN"
+
+          if [ "$CONNECTED" = false ]; then
+            echo "--- OPENVPN LOGS ---"
+            cat /tmp/openvpn.log
             exit 1
-          }
-          
+          fi
+
+          sudo ip route add 10.69.0.0/16 dev tun0 || true
+
+          echo "Testen van SonarQube bereikbaarheid op 10.69.0.48:9000..."
+          if ! curl --silent --show-error --connect-timeout 5 --max-time 10 http://10.69.0.48:9000/api/v2/analysis/version; then
+            echo ""
+            echo "FOUT: Poort 9000 op 10.69.0.48 niet bereikbaar via VPN tunnel!"
+            echo "--- OPENVPN LOGS ---"
+            cat /tmp/openvpn.log
+            exit 1
+          fi
+          echo ""
+          echo "SonarQube is bereikbaar!"
           rm -f vpn-auth.txt
 
       - name: Code Quality & Coverage Analysis (Self-Hosted SonarQube)
@@ -209,7 +225,7 @@ jobs:
 
       - name: Connect to Fontys Netlab OpenVPN
         run: |
-          sudo apt-get update && sudo apt-get install -y openvpn
+          sudo apt-get install -y openvpn
           echo "${{ secrets.OPENVPN_USER }}" > vpn-auth.txt
           echo "${{ secrets.OPENVPN_PASSWORD }}" >> vpn-auth.txt
           echo "${{ secrets.OPENVPN_CONFIG }}" > client.ovpn
