@@ -21,7 +21,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Java Runtime & Backend Pipeline
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -58,7 +57,6 @@ jobs:
           name: compiled-spring-jar
           path: FleetHub_Backend/build/libs/*.jar
 
-      # Node.js Runtime & Frontend Pipeline (Node 22 voor Vitest 5 / JSDOM 31)
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -66,7 +64,7 @@ jobs:
       - name: Lint, Test & Build Frontend
         working-directory: ./FleetHub_Frontend
         env:
-          VITE_API_BASE_URL: ${{ github.ref_name == 'production' && 'http://10.69.0.48:8080/api' || 'http://10.69.0.48:8081/api' }}
+          VITE_API_BASE_URL: ${{ github.ref_name == 'main' && 'http://10.69.0.48:8080/api' || 'http://10.69.0.48:8081/api' }}
         run: |
           npm ci
           npm run lint
@@ -85,18 +83,25 @@ jobs:
           name: built-frontend-dist
           path: FleetHub_Frontend/dist/
 
-      # Gecombineerde SonarCloud Analyse (Java JaCoCo + Frontend LCOV)
-      - name: Code Quality & Coverage Analysis (SonarCloud)
+      - name: Connect to Fontys Netlab OpenVPN
+        run: |
+          sudo apt-get update && sudo apt-get install -y openvpn
+          echo "${{ secrets.OPENVPN_USER }}" > vpn-auth.txt
+          echo "${{ secrets.OPENVPN_PASSWORD }}" >> vpn-auth.txt
+          echo "${{ secrets.OPENVPN_CONFIG }}" > client.ovpn
+          sudo openvpn --config client.ovpn --auth-user-pass vpn-auth.txt --daemon
+          sleep 10
+          rm -f vpn-auth.txt
+
+      - name: Code Quality & Coverage Analysis (Self-Hosted SonarQube)
         uses: SonarSource/sonarqube-scan-action@v4
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.projectKey=jayverrijt_fleethub-backend
+            -Dsonar.projectKey=fleethub
             -Dsonar.projectName=FleetHub
-            -Dsonar.organization=jayverrijt
-            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.host.url=http://10.69.0.48:9000
             -Dsonar.sources=FleetHub_Backend/src/main/java,FleetHub_Frontend/src
             -Dsonar.tests=FleetHub_Backend/src/test/java,FleetHub_Frontend/src
             -Dsonar.test.inclusions=**/*.test.js,**/*.test.jsx,**/*Test.java
@@ -107,9 +112,9 @@ jobs:
             -Dsonar.cpd.exclusions=**/dto/**,**/model/**
 
   github-release:
-    name: 2. Create GitHub Release (Production Only)
+    name: 2. Create GitHub Release (Production on Main)
     needs: build-and-test
-    if: github.event_name == 'push' && github.ref_name == 'production'
+    if: github.event_name == 'push' && github.ref_name == 'main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -155,7 +160,7 @@ jobs:
 
       - id: env-targets
         run: |
-          if [ "${{ github.ref_name }}" = "production" ]; then
+          if [ "${{ github.ref_name }}" = "main" ]; then
             echo "DOCKER_TAG=prod" >> $GITHUB_OUTPUT
             echo "BE_SERVICE=backend-prod" >> $GITHUB_OUTPUT
             echo "FE_SERVICE=frontend-prod" >> $GITHUB_OUTPUT
@@ -215,7 +220,7 @@ jobs:
           script: |
             cd ~
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            docker compose -f docker-compose.prod.yml up -d mysql-test mysql-prod
+            docker compose -f docker-compose.prod.yml up -d mysql-test mysql-prod sonarqube
             docker compose -f docker-compose.prod.yml pull ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
             docker compose -f docker-compose.prod.yml up -d --no-deps ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
             docker image prune -f

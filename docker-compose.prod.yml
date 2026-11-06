@@ -1,7 +1,4 @@
 services:
-  # ==========================================
-  # TESTING ENVIRONMENT (feature/** branches)
-  # ==========================================
   mysql-test:
     image: mysql:8.0
     container_name: fleethub-mysql-test
@@ -47,9 +44,6 @@ services:
     networks:
       - fleethub-net
 
-  # ==========================================
-  # PRODUCTION ENVIRONMENT (production branch)
-  # ==========================================
   mysql-prod:
     image: mysql:8.0
     container_name: fleethub-mysql-prod
@@ -95,9 +89,27 @@ services:
     networks:
       - fleethub-net
 
+  sonarqube:
+    image: sonarqube:community
+    container_name: fleethub-sonarqube
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - fleethub-net
+
 volumes:
   mysql_test_data:
   mysql_prod_data:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
 
 networks:
   fleethub-net:
