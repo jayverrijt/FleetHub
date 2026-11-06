@@ -21,7 +21,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Java 21 Runtime (Temurin)
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -58,7 +57,6 @@ jobs:
           name: compiled-spring-jar
           path: FleetHub_Backend/build/libs/*.jar
 
-      # Node.js 22 Runtime voor Vitest & React Build
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -85,18 +83,30 @@ jobs:
           name: built-frontend-dist
           path: FleetHub_Frontend/dist/
 
-      # OpenVPN Connectie met MTU-stabilisatie
       - name: Connect to Fontys Netlab OpenVPN
         run: |
-          sudo apt-get update && sudo apt-get install -y openvpn
+          sudo apt-get update && sudo apt-get install -y openvpn curl iproute2
           echo "${{ secrets.OPENVPN_USER }}" > vpn-auth.txt
           echo "${{ secrets.OPENVPN_PASSWORD }}" >> vpn-auth.txt
           echo "${{ secrets.OPENVPN_CONFIG }}" > client.ovpn
           sudo openvpn --config client.ovpn --auth-user-pass vpn-auth.txt --tun-mtu 1500 --mssfix 1400 --daemon
-          sleep 10
+          
+          for i in {1..20}; do
+            if ip a show dev tun0 up >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          
+          sudo ip route add 10.69.0.0/16 dev tun0 || true
+          
+          curl -s --connect-timeout 5 http://10.69.0.48:9000/api/v2/analysis/version || {
+            echo "FOUT: Kan SonarQube niet bereiken op 10.69.0.48:9000 via VPN"
+            exit 1
+          }
+          
           rm -f vpn-auth.txt
 
-      # SonarQube Scanner (Geüpgraded naar v6, gebruikt Java 21 van de runner)
       - name: Code Quality & Coverage Analysis (Self-Hosted SonarQube)
         uses: SonarSource/sonarqube-scan-action@v6
         env:
@@ -105,7 +115,7 @@ jobs:
         with:
           args: >
             -Dsonar.scanner.skipJreProvisioning=true
-            -Dsonar.ws.timeout=300
+            -Dsonar.scanner.socketTimeout=120
             -Dsonar.projectKey=fleethub
             -Dsonar.projectName=FleetHub
             -Dsonar.host.url=http://10.69.0.48:9000
