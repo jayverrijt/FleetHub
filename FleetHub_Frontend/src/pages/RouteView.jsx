@@ -19,7 +19,7 @@ export default function RouteView({ currentUser }) {
     // Controleer of de geselecteerde route al IN_PROGRESS is
     const isRouteInProgress = selectedRoute?.status === 'IN_PROGRESS';
 
-    // US3a: Broadcast automatisch zodra de rit lokaal gestart/hervat is
+    // Live GPS Status
     const { isConnected, lastPosition, geoError } = useDriverLocationBroadcaster(isTripStarted);
 
     useEffect(() => {
@@ -132,7 +132,7 @@ export default function RouteView({ currentUser }) {
                 </span>
             </header>
 
-            {/* US3a: Live GPS Statusbalk */}
+            {/* Live GPS Statusbalk */}
             {isTripStarted && (
                 <div className="flex items-center justify-between px-4 py-2 bg-slate-950/80 border-b border-slate-800 text-[11px]">
                     <div className="flex items-center gap-2">
@@ -170,10 +170,11 @@ export default function RouteView({ currentUser }) {
                     ) : (
                         <div className="flex flex-col gap-3">
                             {routes.map((r) => (
-                                <div
+                                <button
                                     key={r.id}
+                                    type="button"
                                     onClick={() => handleSelectRoute(r)}
-                                    className="bg-slate-950 border border-slate-800 hover:border-blue-500 rounded-xl p-4 cursor-pointer transition-all hover:-translate-y-0.5"
+                                    className="w-full text-left bg-slate-950 border border-slate-800 hover:border-blue-500 rounded-xl p-4 cursor-pointer transition-all hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
                                     <div className="flex justify-between items-center mb-2">
                                         <span className="text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded">
@@ -183,7 +184,7 @@ export default function RouteView({ currentUser }) {
                                     </div>
                                     <h3 className="text-sm font-semibold text-white mb-1">{r.name}</h3>
                                     <p className="text-xs text-blue-400 font-medium">Bekijk stops &amp; kaart →</p>
-                                </div>
+                                </button>
                             ))}
                         </div>
                     )}
@@ -195,6 +196,7 @@ export default function RouteView({ currentUser }) {
                 <>
                     <main className="flex-1 p-4 flex flex-col gap-3 overflow-y-auto">
                         <button
+                            type="button"
                             onClick={() => setCurrentScreen('ROUTES')}
                             className="self-start text-xs text-slate-400 hover:text-white transition-colors"
                         >
@@ -204,6 +206,7 @@ export default function RouteView({ currentUser }) {
                         {/* Toggle Knop */}
                         <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
                             <button
+                                type="button"
                                 onClick={() => setViewMode('LIST')}
                                 className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${
                                     viewMode === 'LIST' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
@@ -212,6 +215,7 @@ export default function RouteView({ currentUser }) {
                                 Stoppenlijst ({stops.length})
                             </button>
                             <button
+                                type="button"
                                 onClick={() => setViewMode('MAP')}
                                 className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${
                                     viewMode === 'MAP' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
@@ -243,11 +247,13 @@ export default function RouteView({ currentUser }) {
                                 {stops.map((stop, index) => {
                                     const isSelected = activeStop?.id === stop.id;
                                     return (
-                                        <div
+                                        <button
                                             key={stop.id}
+                                            type="button"
+                                            disabled={!isTripStarted}
                                             onClick={() => handleCardClick(stop)}
-                                            className={`p-3 rounded-xl border transition-all ${
-                                                !isTripStarted ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:border-slate-600'
+                                            className={`w-full text-left p-3 rounded-xl border transition-all focus:outline-none ${
+                                                !isTripStarted ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:border-slate-600 focus:ring-2 focus:ring-blue-500'
                                             } ${
                                                 isSelected
                                                     ? 'bg-blue-600/10 border-blue-500'
@@ -264,7 +270,7 @@ export default function RouteView({ currentUser }) {
                                             </div>
                                             <div className="text-sm font-semibold text-white">{stop.recipientName}</div>
                                             <div className="text-xs text-slate-400 mt-0.5">{stop.address}, {stop.city}</div>
-                                        </div>
+                                        </button>
                                     );
                                 })}
                             </div>
@@ -288,6 +294,7 @@ export default function RouteView({ currentUser }) {
                     <footer className="p-3 bg-slate-950 border-t border-slate-800">
                         {!isTripStarted ? (
                             <button
+                                type="button"
                                 onClick={handleStartTrip}
                                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition-colors"
                             >
@@ -295,6 +302,7 @@ export default function RouteView({ currentUser }) {
                             </button>
                         ) : (
                             <button
+                                type="button"
                                 onClick={() => {
                                     const next = stops.find((s) => s.status === 'PENDING') || stops[0];
                                     setActiveStop(next);
@@ -314,6 +322,7 @@ export default function RouteView({ currentUser }) {
                 <main className="flex-1 p-4 flex flex-col justify-between">
                     <div>
                         <button
+                            type="button"
                             onClick={() => setCurrentScreen('STOPS')}
                             className="text-xs text-slate-400 hover:text-white mb-3 inline-block transition-colors"
                         >
@@ -347,12 +356,14 @@ export default function RouteView({ currentUser }) {
                     {activeStop.status === 'PENDING' ? (
                         <div className="flex gap-3">
                             <button
+                                type="button"
                                 onClick={() => handleStatusChange('DELIVERED')}
                                 className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl text-sm transition-colors"
                             >
                                 Geleverd
                             </button>
                             <button
+                                type="button"
                                 onClick={() => handleStatusChange('FAILED_NOT_HOME')}
                                 className="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-bold py-3 rounded-xl text-sm transition-colors"
                             >

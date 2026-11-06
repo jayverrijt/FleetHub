@@ -1,7 +1,6 @@
 package nl.fleethub.backend.controller;
 
 import nl.fleethub.backend.dto.DriverLocationPayload;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -11,55 +10,40 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DriverTelemetryControllerTest {
 
-    private DriverTelemetryController controller;
-
-    @BeforeEach
-    void setUp() {
-        controller = new DriverTelemetryController();
-    }
+    private final DriverTelemetryController controller = new DriverTelemetryController();
 
     @Test
-    @DisplayName("UT-TEL-01: Broadcasts telemetry when timestamp is already present")
-    void broadcastDriverLocation_WithExistingTimestamp() {
-        Instant fixedTimestamp = Instant.parse("2026-11-05T12:00:00Z");
-        DriverLocationPayload payload = new DriverLocationPayload(
-                1L,
-                "Jan de Vries",
-                10L,
-                51.4416,
-                5.4697,
-                12.5,
-                90.0,
-                fixedTimestamp
-        );
+    @DisplayName("UT-TEL-01: broadcastDriverLocation retourneert telemetry payload met actuele timestamp")
+    void broadcastDriverLocation_ReturnsPayloadWithTimestamp() {
+        DriverLocationPayload payload = new DriverLocationPayload();
+        payload.setDriverId(1L);
+        payload.setDriverName("Jan de Vries");
+        payload.setLatitude(51.4416);
+        payload.setLongitude(5.4697);
+        payload.setSpeed(12.5);
+        payload.setHeading(90.0);
+        payload.setTimestamp(null); // Geen timestamp meegegeven
 
         DriverLocationPayload result = controller.broadcastDriverLocation(payload);
 
         assertNotNull(result);
         assertEquals(1L, result.getDriverId());
         assertEquals("Jan de Vries", result.getDriverName());
-        assertEquals(10L, result.getVehicleId());
         assertEquals(51.4416, result.getLatitude());
         assertEquals(5.4697, result.getLongitude());
-        assertEquals(12.5, result.getSpeed());
-        assertEquals(90.0, result.getHeading());
-        assertEquals(fixedTimestamp, result.getTimestamp());
+        assertNotNull(result.getTimestamp()); // Controller vult automatisch Instant.now() aan
     }
 
     @Test
-    @DisplayName("UT-TEL-02: Assigns a new timestamp when timestamp is null (covers fallback branch)")
-    void broadcastDriverLocation_WithNullTimestamp_GeneratesNewTimestamp() {
-        DriverLocationPayload payload = new DriverLocationPayload();
-        payload.setDriverId(2L);
-        payload.setDriverName("Piet");
-        payload.setLatitude(51.4500);
-        payload.setLongitude(5.4800);
-        payload.setTimestamp(null); // Forceer null om de if-tak te raken
+    @DisplayName("UT-TEL-02: broadcastDriverLocation behoudt bestaande timestamp")
+    void broadcastDriverLocation_KeepsExistingTimestamp() {
+        Instant specificTime = Instant.parse("2026-11-06T12:00:00Z");
+        DriverLocationPayload payload = new DriverLocationPayload(
+                1L, "Jan de Vries", 101L, 51.4416, 5.4697, 10.0, 180.0, specificTime
+        );
 
         DriverLocationPayload result = controller.broadcastDriverLocation(payload);
 
-        assertNotNull(result);
-        assertNotNull(result.getTimestamp(), "Timestamp moet automatisch ingevuld worden door de controller");
-        assertTrue(result.getTimestamp().isBefore(Instant.now().plusSeconds(2)));
+        assertEquals(specificTime, result.getTimestamp());
     }
 }

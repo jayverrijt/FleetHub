@@ -3,7 +3,7 @@ import { apiFetch, apiGet, apiPost, apiPatch, apiDelete, handleApiResponse } fro
 import * as authService from '../authService';
 
 vi.mock('../authService', () => ({
-    logout: vi.fn()
+    logout: vi.fn().mockResolvedValue({})
 }));
 
 describe('apiClient Unit Tests (LO4 Quality Gate)', () => {

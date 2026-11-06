@@ -2,6 +2,7 @@ const geocodeCache = new Map();
 
 /**
  * Zet een adres en stad om naar [latitude, longitude] via OpenStreetMap Nominatim.
+ *
  * @param {string} address
  * @param {string} city
  * @returns {Promise<[number, number]>}
@@ -27,8 +28,8 @@ export async function geocodeAddress(address, city) {
             const data = await response.json();
             if (Array.isArray(data) && data.length > 0) {
                 const first = data[0];
-                const lat = parseFloat(first['lat']);
-                const lon = parseFloat(first['lon']);
+                const lat = Number.parseFloat(first.lat);
+                const lon = Number.parseFloat(first.lon);
                 if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
                     const coords = [lat, lon];
                     geocodeCache.set(query, coords);
@@ -54,8 +55,8 @@ export async function geocodeAddress(address, city) {
             const cityData = await cityRes.json();
             if (Array.isArray(cityData) && cityData.length > 0) {
                 const fallback = cityData[0];
-                const fallbackLat = parseFloat(fallback['lat']);
-                const fallbackLon = parseFloat(fallback['lon']);
+                const fallbackLat = Number.parseFloat(fallback.lat);
+                const fallbackLon = Number.parseFloat(fallback.lon);
                 if (!Number.isNaN(fallbackLat) && !Number.isNaN(fallbackLon)) {
                     const fallbackCoords = [fallbackLat, fallbackLon];
                     geocodeCache.set(query, fallbackCoords);
