@@ -146,7 +146,7 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      # Download de gecompileerde classes en testrapporten van de vorige fases
+      # Download de gecompileerde classes en testrapporten van eerdere fasen
       - uses: actions/download-artifact@v4
         with:
           name: backend-classes
@@ -162,7 +162,7 @@ jobs:
           name: frontend-coverage-report
           path: FleetHub_Frontend/coverage
 
-      # OpenVPN Verbinding naar Netlab
+      # OpenVPN Verbinding naar Netlab (inclusief log permission fix en routering)
       - name: Connect to Fontys Netlab OpenVPN
         run: |
           sudo apt-get install -y openvpn iproute2 curl
@@ -170,12 +170,16 @@ jobs:
           echo "${{ secrets.OPENVPN_PASSWORD }}" >> vpn-auth.txt
           echo "${{ secrets.OPENVPN_CONFIG }}" > client.ovpn
 
+          # Maak logbestand aan met leesrechten voor runner
+          sudo touch /tmp/openvpn.log
+          sudo chmod 666 /tmp/openvpn.log
+
           sudo openvpn --config client.ovpn --auth-user-pass vpn-auth.txt --tun-mtu 1500 --mssfix 1400 --log /tmp/openvpn.log --daemon
 
           echo "Wachten op OpenVPN verbinding..."
           CONNECTED=false
-          for i in {1..25}; do
-            if grep -q "Initialization Sequence Completed" /tmp/openvpn.log 2>/dev/null; then
+          for i in {1..30}; do
+            if sudo grep -q "Initialization Sequence Completed" /tmp/openvpn.log 2>/dev/null; then
               echo "OpenVPN handshake voltooid!"
               CONNECTED=true
               break
@@ -189,10 +193,17 @@ jobs:
             exit 1
           fi
 
+          # Wijs verkeer voor het Fontys VPS netwerk expliciet toe aan tun0
+          sudo ip route add 10.69.0.0/16 dev tun0 || true
+
+          # Debug: controleer de actieve routing
+          ip route show
+
           echo "Controleer bereikbaarheid van SonarQube op 10.69.0.48:9000..."
           if ! curl --silent --show-error --connect-timeout 8 --max-time 15 http://10.69.0.48:9000/api/v2/analysis/version; then
             echo ""
-            echo "FOUT: Poort 9000 niet bereikbaar via VPN tunnel!"
+            echo "FOUT: Poort 9000 niet bereikbaar via VPN tunnel! Netwerk trace:"
+            ping -c 3 10.69.0.48 || true
             echo "--- OPENVPN LOGS ---"
             sudo cat /tmp/openvpn.log
             exit 1
@@ -201,7 +212,7 @@ jobs:
           echo "SonarQube is bereikbaar!"
           rm -f vpn-auth.txt
 
-      # SonarQube Scanner
+      # SonarQube Scanner (Gebruikt Java 21 van de runner)
       - name: Code Quality & Coverage Analysis (Self-Hosted SonarQube)
         uses: SonarSource/sonarqube-scan-action@v6
         env:
@@ -216,127 +227,3 @@ jobs:
             -Dsonar.host.url=http://10.69.0.48:9000
             -Dsonar.sources=FleetHub_Backend/src/main/java,FleetHub_Frontend/src
             -Dsonar.tests=FleetHub_Backend/src/test/java,FleetHub_Frontend/src
-            -Dsonar.test.inclusions=**/*.test.js,**/*.test.jsx,**/*Test.java
-            -Dsonar.java.binaries=FleetHub_Backend/build/classes/java/main
-            -Dsonar.coverage.jacoco.xmlReportPaths=FleetHub_Backend/build/reports/jacoco/test/jacocoTestReport.xml
-            -Dsonar.javascript.lcov.reportPaths=FleetHub_Frontend/coverage/lcov.info
-            -Dsonar.coverage.exclusions=**/BackendApplication.java,**/dto/**,**/model/**,**/config/**,FleetHub_Frontend/src/main.jsx,FleetHub_Frontend/dist/**
-            -Dsonar.cpd.exclusions=**/dto/**,**/model/**
-
-  # ==========================================
-  # FASE 4: RELEASE (Alleen main)
-  # ==========================================
-  github-release:
-    name: 4. Create GitHub Release (Production on Main)
-    needs: sonar-analysis
-    if: github.event_name == 'push' && github.ref_name == 'main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: compiled-spring-jar
-          path: ./release/
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ github.run_number }}
-          name: Release v${{ github.run_number }}
-          files: ./release/*.jar
-          draft: false
-          prerelease: false
-
-  # ==========================================
-  # FASE 5: DEPLOYMENT NAAR VPS
-  # ==========================================
-  deploy-to-vps:
-    name: 5. CD - Deploy to VPS
-    needs: sonar-analysis
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: compiled-spring-jar
-          path: FleetHub_Backend/build/libs/
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: built-frontend-dist
-          path: FleetHub_Frontend/dist/
-
-      - id: env-targets
-        run: |
-          if [ "${{ github.ref_name }}" = "main" ]; then
-            echo "DOCKER_TAG=prod" >> $GITHUB_OUTPUT
-            echo "BE_SERVICE=backend-prod" >> $GITHUB_OUTPUT
-            echo "FE_SERVICE=frontend-prod" >> $GITHUB_OUTPUT
-          else
-            echo "DOCKER_TAG=test" >> $GITHUB_OUTPUT
-            echo "BE_SERVICE=backend-test" >> $GITHUB_OUTPUT
-            echo "FE_SERVICE=frontend-test" >> $GITHUB_OUTPUT
-          fi
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/build-push-action@v5
-        with:
-          context: ./FleetHub_Backend
-          file: ./FleetHub_Backend/Dockerfile
-          push: true
-          tags: ghcr.io/jayverrijt/fleethub-backend:${{ steps.env-targets.outputs.DOCKER_TAG }}
-
-      - uses: docker/build-push-action@v5
-        with:
-          context: ./FleetHub_Frontend
-          file: ./FleetHub_Frontend/Dockerfile
-          push: true
-          tags: ghcr.io/jayverrijt/fleethub-frontend:${{ steps.env-targets.outputs.DOCKER_TAG }}
-
-      - name: Connect to Fontys Netlab OpenVPN
-        run: |
-          sudo apt-get install -y openvpn
-          echo "${{ secrets.OPENVPN_USER }}" > vpn-auth.txt
-          echo "${{ secrets.OPENVPN_PASSWORD }}" >> vpn-auth.txt
-          echo "${{ secrets.OPENVPN_CONFIG }}" > client.ovpn
-          sudo openvpn --config client.ovpn --auth-user-pass vpn-auth.txt --tun-mtu 1500 --mssfix 1400 --daemon
-          sleep 10
-          rm -f vpn-auth.txt
-
-      - name: Sync docker-compose.prod.yml to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          source: "docker-compose.prod.yml"
-          target: "~"
-
-      - name: Deploy to VPS via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          script: |
-            cd ~
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            docker compose -f docker-compose.prod.yml up -d mysql-test mysql-prod sonarqube
-            docker compose -f docker-compose.prod.yml pull ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
-            docker compose -f docker-compose.prod.yml up -d --no-deps ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
-            docker image prune -f
