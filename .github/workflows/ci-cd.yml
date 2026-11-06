@@ -21,6 +21,7 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Java 21 Runtime (Temurin)
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -57,6 +58,7 @@ jobs:
           name: compiled-spring-jar
           path: FleetHub_Backend/build/libs/*.jar
 
+      # Node.js 22 Runtime voor Vitest & React Build
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -83,23 +85,27 @@ jobs:
           name: built-frontend-dist
           path: FleetHub_Frontend/dist/
 
+      # OpenVPN Connectie met MTU-stabilisatie
       - name: Connect to Fontys Netlab OpenVPN
         run: |
           sudo apt-get update && sudo apt-get install -y openvpn
           echo "${{ secrets.OPENVPN_USER }}" > vpn-auth.txt
           echo "${{ secrets.OPENVPN_PASSWORD }}" >> vpn-auth.txt
           echo "${{ secrets.OPENVPN_CONFIG }}" > client.ovpn
-          sudo openvpn --config client.ovpn --auth-user-pass vpn-auth.txt --daemon
+          sudo openvpn --config client.ovpn --auth-user-pass vpn-auth.txt --tun-mtu 1500 --mssfix 1400 --daemon
           sleep 10
           rm -f vpn-auth.txt
 
+      # SonarQube Scanner (Geüpgraded naar v6, gebruikt Java 21 van de runner)
       - name: Code Quality & Coverage Analysis (Self-Hosted SonarQube)
-        uses: SonarSource/sonarqube-scan-action@v4
+        uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          JAVA_HOME: ${{ env.JAVA_HOME }}
         with:
           args: >
             -Dsonar.scanner.skipJreProvisioning=true
+            -Dsonar.ws.timeout=300
             -Dsonar.projectKey=fleethub
             -Dsonar.projectName=FleetHub
             -Dsonar.host.url=http://10.69.0.48:9000
@@ -197,7 +203,7 @@ jobs:
           echo "${{ secrets.OPENVPN_USER }}" > vpn-auth.txt
           echo "${{ secrets.OPENVPN_PASSWORD }}" >> vpn-auth.txt
           echo "${{ secrets.OPENVPN_CONFIG }}" > client.ovpn
-          sudo openvpn --config client.ovpn --auth-user-pass vpn-auth.txt --daemon
+          sudo openvpn --config client.ovpn --auth-user-pass vpn-auth.txt --tun-mtu 1500 --mssfix 1400 --daemon
           sleep 10
           rm -f vpn-auth.txt
 
