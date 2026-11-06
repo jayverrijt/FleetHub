@@ -305,7 +305,7 @@ jobs:
           push: true
           tags: ghcr.io/jayverrijt/fleethub-backend:${{ steps.env-targets.outputs.DOCKER_TAG }}
 
-      - docker/build-push-action@v5
+      - uses: docker/build-push-action@v5
         with:
           context: ./FleetHub_Frontend
           file: ./FleetHub_Frontend/Dockerfile
