@@ -161,7 +161,7 @@ jobs:
           name: frontend-coverage-report
           path: FleetHub_Frontend/coverage
 
-      # OpenVPN Verbinding naar Netlab
+      # OpenVPN Verbinding naar Fontys Netlab
       - name: Connect to Fontys Netlab OpenVPN
         run: |
           sudo apt-get install -y openvpn iproute2 curl
@@ -191,7 +191,6 @@ jobs:
             exit 1
           fi
 
-          # Wacht kort zodat de route via 172.16.16.1 stabiel actief is
           sleep 3
 
           echo "Controleer bereikbaarheid van SonarQube op 10.69.0.48:9000..."
@@ -207,12 +206,13 @@ jobs:
           echo "SonarQube is bereikbaar!"
           rm -f vpn-auth.txt
 
-      # SonarQube Scanner
+      # SonarQube Scanner geforceerd op Java 21 van de runner
       - name: Code Quality & Coverage Analysis (Self-Hosted SonarQube)
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          JAVA_HOME: ${{ env.JAVA_HOME }}
+          JAVA_HOME: ${{ env.JAVA_HOME_21_X64 }}
+          SONAR_JAVA_PATH: ${{ env.JAVA_HOME_21_X64 }}/bin/java
         with:
           args: >
             -Dsonar.scanner.skipJreProvisioning=true
@@ -305,7 +305,7 @@ jobs:
           push: true
           tags: ghcr.io/jayverrijt/fleethub-backend:${{ steps.env-targets.outputs.DOCKER_TAG }}
 
-      - uses: docker/build-push-action@v5
+      - docker/build-push-action@v5
         with:
           context: ./FleetHub_Frontend
           file: ./FleetHub_Frontend/Dockerfile
