@@ -99,6 +99,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
+            -Dsonar.scanner.skipJreProvisioning=true
             -Dsonar.projectKey=fleethub
             -Dsonar.projectName=FleetHub
             -Dsonar.host.url=http://10.69.0.48:9000
