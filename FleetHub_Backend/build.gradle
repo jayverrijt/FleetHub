@@ -84,9 +84,7 @@ jacocoTestReport {
                     'nl/fleethub/backend/BackendApplication.class',
                     'nl/fleethub/backend/dto/**',
                     'nl/fleethub/backend/model/**',
-                    'nl/fleethub/backend/repository/**',
-                    'nl/fleethub/backend/security/SecurityConfig.class',
-                    'nl/fleethub/backend/security/JwtAuthenticationFilter.class'
+                    'nl/fleethub/backend/security/SecurityConfig.class'
             ])
         }))
     }
@@ -106,9 +104,7 @@ jacocoTestCoverageVerification {
                     'nl.fleethub.backend.BackendApplication',
                     'nl.fleethub.backend.dto.*',
                     'nl.fleethub.backend.model.*',
-                    'nl.fleethub.backend.repository.*',
-                    'nl.fleethub.backend.security.SecurityConfig',
-                    'nl.fleethub.backend.security.JwtAuthenticationFilter'
+                    'nl.fleethub.backend.security.SecurityConfig'
             ]
         }
     }

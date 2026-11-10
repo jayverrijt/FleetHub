@@ -12,14 +12,12 @@ on:
       - main
 
 jobs:
-  build-and-test:
-    name: 1. CI - Build, Test & Quality Scan
+  # FASE 1: BUILD JOBS (Frontend en Backend)
+  build-backend:
+    name: 1a. Build - Backend (Java Spring Boot)
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-java@v4
         with:
@@ -27,13 +25,67 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - name: Build, Test & JaCoCo Coverage (Backend)
+      - name: Compile Backend & Package JAR
         working-directory: ./FleetHub_Backend
         run: |
           chmod +x gradlew
-          ./gradlew clean --no-daemon
-          ./gradlew compileJava compileTestJava --no-daemon
-          ./gradlew check -x compileJava -x compileTestJava --no-daemon
+          ./gradlew clean compileJava --no-daemon
+          ./gradlew bootJar -x test --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compiled-spring-jar
+          path: FleetHub_Backend/build/libs/*.jar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-classes
+          path: FleetHub_Backend/build/classes/java/main/
+
+  build-frontend:
+    name: 1b. Build - Frontend (React Vite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: FleetHub_Frontend/package-lock.json
+
+      - name: Install & Build Production Bundle
+        working-directory: ./FleetHub_Frontend
+        env:
+          VITE_API_BASE_URL: ${{ github.ref_name == 'main' && 'http://10.69.0.48:8080/api' || 'http://10.69.0.48:8081/api' }}
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: built-frontend-dist
+          path: FleetHub_Frontend/dist/
+
+  # FASE 2: TEST JOBS Frontend en Backend 
+  test-backend:
+    name: 2a. Test - Backend (JUnit & JaCoCo)
+    needs: build-backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Run Backend Unit Tests & Coverage
+        working-directory: ./FleetHub_Backend
+        run: |
+          chmod +x gradlew
+          ./gradlew test jacocoTestReport jacocoTestCoverageVerification --no-daemon
 
       - if: always()
         uses: actions/upload-artifact@v4
@@ -45,31 +97,27 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-coverage-report
-          path: FleetHub_Backend/build/reports/jacoco/test/html/
+          path: FleetHub_Backend/build/reports/jacoco/test/
 
-      - if: success()
-        working-directory: ./FleetHub_Backend
-        run: ./gradlew bootJar -x test --no-daemon
-
-      - if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: compiled-spring-jar
-          path: FleetHub_Backend/build/libs/*.jar
+  test-frontend:
+    name: 2b. Test - Frontend (ESLint & Vitest)
+    needs: build-frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: FleetHub_Frontend/package-lock.json
 
-      - name: Lint, Test & Build Frontend
+      - name: Run Linting & Unit Tests
         working-directory: ./FleetHub_Frontend
-        env:
-          VITE_API_BASE_URL: ${{ github.ref_name == 'main' && 'http://10.69.0.48:8080/api' || 'http://10.69.0.48:8081/api' }}
         run: |
           npm ci
           npm run lint
           npm run test:unit
-          npm run build
 
       - if: always()
         uses: actions/upload-artifact@v4
@@ -77,11 +125,35 @@ jobs:
           name: frontend-coverage-report
           path: FleetHub_Frontend/coverage/
 
-      - if: success()
-        uses: actions/upload-artifact@v4
+  # FASE 3: SONARQUBE QUALITY GATE & VPN
+  sonar-analysis:
+    name: 3. Quality - SonarQube Analysis (Self-Hosted via VPN)
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
         with:
-          name: built-frontend-dist
-          path: FleetHub_Frontend/dist/
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-classes
+          path: FleetHub_Backend/build/classes/java/main
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: jacoco-coverage-report
+          path: FleetHub_Backend/build/reports/jacoco/test
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-coverage-report
+          path: FleetHub_Frontend/coverage
 
       - name: Connect to Fontys Netlab OpenVPN
         run: |
@@ -90,13 +162,16 @@ jobs:
           echo "${{ secrets.OPENVPN_PASSWORD }}" >> vpn-auth.txt
           echo "${{ secrets.OPENVPN_CONFIG }}" > client.ovpn
 
+          sudo touch /tmp/openvpn.log
+          sudo chmod 666 /tmp/openvpn.log
+
           sudo openvpn --config client.ovpn --auth-user-pass vpn-auth.txt --tun-mtu 1500 --mssfix 1400 --log /tmp/openvpn.log --daemon
 
-          echo "Wachten op OpenVPN tun0 interface..."
+          echo "Wachten op OpenVPN verbinding..."
           CONNECTED=false
-          for i in {1..15}; do
-            if ip link show dev tun0 up >/dev/null 2>&1; then
-              echo "OpenVPN interface tun0 is UP!"
+          for i in {1..30}; do
+            if sudo grep -q "Initialization Sequence Completed" /tmp/openvpn.log 2>/dev/null; then
+              echo "OpenVPN handshake voltooid!"
               CONNECTED=true
               break
             fi
@@ -105,18 +180,19 @@ jobs:
 
           if [ "$CONNECTED" = false ]; then
             echo "--- OPENVPN LOGS ---"
-            cat /tmp/openvpn.log
+            sudo cat /tmp/openvpn.log
             exit 1
           fi
 
-          sudo ip route add 10.69.0.0/16 dev tun0 || true
+          sleep 3
 
-          echo "Testen van SonarQube bereikbaarheid op 10.69.0.48:9000..."
-          if ! curl --silent --show-error --connect-timeout 5 --max-time 10 http://10.69.0.48:9000/api/v2/analysis/version; then
+          echo "Controleer bereikbaarheid van SonarQube op 10.69.0.48:9000..."
+          if ! curl --silent --show-error --connect-timeout 8 --max-time 15 http://10.69.0.48:9000/api/v2/analysis/version; then
             echo ""
-            echo "FOUT: Poort 9000 op 10.69.0.48 niet bereikbaar via VPN tunnel!"
+            echo "FOUT: Poort 9000 niet bereikbaar via VPN tunnel! Netwerk trace:"
+            ping -c 3 10.69.0.48 || true
             echo "--- OPENVPN LOGS ---"
-            cat /tmp/openvpn.log
+            sudo cat /tmp/openvpn.log
             exit 1
           fi
           echo ""
@@ -124,34 +200,45 @@ jobs:
           rm -f vpn-auth.txt
 
       - name: Code Quality & Coverage Analysis (Self-Hosted SonarQube)
-        uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          JAVA_HOME: ${{ env.JAVA_HOME }}
-        with:
-          args: >
-            -Dsonar.scanner.skipJreProvisioning=true
-            -Dsonar.scanner.socketTimeout=120
-            -Dsonar.projectKey=fleethub
-            -Dsonar.projectName=FleetHub
-            -Dsonar.host.url=http://10.69.0.48:9000
-            -Dsonar.sources=FleetHub_Backend/src/main/java,FleetHub_Frontend/src
-            -Dsonar.tests=FleetHub_Backend/src/test/java,FleetHub_Frontend/src
-            -Dsonar.test.inclusions=**/*.test.js,**/*.test.jsx,**/*Test.java
-            -Dsonar.java.binaries=FleetHub_Backend/build/classes/java/main
-            -Dsonar.coverage.jacoco.xmlReportPaths=FleetHub_Backend/build/reports/jacoco/test/jacocoTestReport.xml
-            -Dsonar.javascript.lcov.reportPaths=FleetHub_Frontend/coverage/lcov.info
-            -Dsonar.coverage.exclusions=**/BackendApplication.java,**/dto/**,**/model/**,**/config/**,FleetHub_Frontend/src/main.jsx,FleetHub_Frontend/dist/**
+        run: |
+          SCANNER_VERSION="7.2.0.5079"
+          echo "Downloaden SonarScanner CLI..."
+          curl -sSLo /tmp/sonar-scanner.zip "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SCANNER_VERSION}-linux-x64.zip"
+          unzip -q /tmp/sonar-scanner.zip -d /tmp
+          
+          SCANNER_DIR="/tmp/sonar-scanner-${SCANNER_VERSION}-linux-x64"
+
+          rm -rf "${SCANNER_DIR}/jre"
+          ln -s "${JAVA_HOME}" "${SCANNER_DIR}/jre"
+
+          echo "Gebruikte Java versie:"
+          "${SCANNER_DIR}/jre/bin/java" -version
+
+          "${SCANNER_DIR}/bin/sonar-scanner" \
+            -Dsonar.scanner.skipJreProvisioning=true \
+            -Dsonar.scanner.socketTimeout=120 \
+            -Dsonar.projectKey=fleethub \
+            -Dsonar.projectName=FleetHub \
+            -Dsonar.host.url=http://10.69.0.48:9000 \
+            -Dsonar.sources=FleetHub_Backend/src/main/java,FleetHub_Frontend/src \
+            -Dsonar.tests=FleetHub_Backend/src/test/java,FleetHub_Frontend/src \
+            -Dsonar.test.inclusions=**/*.test.js,**/*.test.jsx,**/*Test.java \
+            -Dsonar.java.binaries=FleetHub_Backend/build/classes/java/main \
+            -Dsonar.coverage.jacoco.xmlReportPaths=FleetHub_Backend/build/reports/jacoco/test/jacocoTestReport.xml \
+            -Dsonar.javascript.lcov.reportPaths=FleetHub_Frontend/coverage/lcov.info \
+            -Dsonar.coverage.exclusions=**/BackendApplication.java,**/dto/**,**/model/**,**/config/**,FleetHub_Frontend/src/main.jsx,FleetHub_Frontend/dist/** \
             -Dsonar.cpd.exclusions=**/dto/**,**/model/**
 
+  # FASE 4: RELEASE (Alleen main)
   github-release:
-    name: 2. Create GitHub Release (Production on Main)
-    needs: build-and-test
+    name: 4. Create GitHub Release (Production on Main)
+    needs: sonar-analysis
     if: github.event_name == 'push' && github.ref_name == 'main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - uses: actions/checkout@v4
 
@@ -169,15 +256,15 @@ jobs:
           draft: false
           prerelease: false
 
+  # FASE 5: DEPLOYMENT NAAR VPS
   deploy-to-vps:
-    name: 3. CD - Deploy to VPS
-    needs: build-and-test
+    name: 5. CD - Deploy to VPS
+    needs: sonar-analysis
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
     steps:
       - uses: actions/checkout@v4
 
@@ -195,12 +282,8 @@ jobs:
         run: |
           if [ "${{ github.ref_name }}" = "main" ]; then
             echo "DOCKER_TAG=prod" >> $GITHUB_OUTPUT
-            echo "BE_SERVICE=backend-prod" >> $GITHUB_OUTPUT
-            echo "FE_SERVICE=frontend-prod" >> $GITHUB_OUTPUT
           else
             echo "DOCKER_TAG=test" >> $GITHUB_OUTPUT
-            echo "BE_SERVICE=backend-test" >> $GITHUB_OUTPUT
-            echo "FE_SERVICE=frontend-test" >> $GITHUB_OUTPUT
           fi
 
       - uses: docker/login-action@v3
@@ -214,14 +297,14 @@ jobs:
           context: ./FleetHub_Backend
           file: ./FleetHub_Backend/Dockerfile
           push: true
-          tags: ghcr.io/jayverrijt/fleethub-backend:${{ steps.env-targets.outputs.DOCKER_TAG }}
+          tags: ghcr.io/jayverrijt/fleethub-backend:latest
 
       - uses: docker/build-push-action@v5
         with:
           context: ./FleetHub_Frontend
           file: ./FleetHub_Frontend/Dockerfile
           push: true
-          tags: ghcr.io/jayverrijt/fleethub-frontend:${{ steps.env-targets.outputs.DOCKER_TAG }}
+          tags: ghcr.io/jayverrijt/fleethub-frontend:latest
 
       - name: Connect to Fontys Netlab OpenVPN
         run: |
@@ -245,15 +328,33 @@ jobs:
 
       - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
+          envs: MYSQL_ROOT_PASSWORD,MYSQL_PASSWORD,JWT_SECRET
           script: |
             cd ~
+
+            # 1. Genereer de veilige .env op de VPS
+            cat <<EOF > .env
+            MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
+            MYSQL_USER=fleethub
+            MYSQL_PASSWORD=$MYSQL_PASSWORD
+            JWT_SECRET=$JWT_SECRET
+            CORS_ALLOWED_ORIGINS=http://10.69.0.48:3000,http://10.69.0.48,http://localhost:3000,http://localhost:5173
+            EOF
+
+            chmod 600 .env
+
+            # 2. Inloggen op GHCR en containers starten
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            docker compose -f docker-compose.prod.yml up -d mysql-test mysql-prod sonarqube
-            docker compose -f docker-compose.prod.yml pull ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
-            docker compose -f docker-compose.prod.yml up -d --no-deps ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
+            docker compose -f docker-compose.prod.yml up -d mysql
+            docker compose -f docker-compose.prod.yml pull backend frontend
+            docker compose -f docker-compose.prod.yml up -d --no-deps backend frontend
             docker image prune -f

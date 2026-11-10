@@ -34,9 +34,9 @@ export default function LoginView({ onLoginSuccess }) {
             {/* LINKER PANEEL: Alleen zichtbaar op Desktop / Tablet */}
             <div className="hidden md:flex flex-col justify-between p-8 sm:p-10 bg-slate-950 border-r border-slate-800">
                 <div>
-          <span className="inline-block bg-blue-600/20 text-blue-400 border border-blue-500/30 text-xs font-bold px-3 py-1 rounded-md mb-4 tracking-wide">
-            FLEETHUB DISPATCH
-          </span>
+                    <span className="inline-block bg-blue-600/20 text-blue-400 border border-blue-500/30 text-xs font-bold px-3 py-1 rounded-md mb-4 tracking-wide">
+                        FLEETHUB DISPATCH
+                    </span>
                     <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mb-3">
                         Centraal Vloot- &amp; Bezorgplatform
                     </h1>
@@ -99,8 +99,12 @@ export default function LoginView({ onLoginSuccess }) {
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1.5">E-mailadres</label>
+                        <label htmlFor="login-email" className="block text-xs font-medium text-slate-300 mb-1.5">
+                            E-mailadres
+                        </label>
                         <input
+                            id="login-email"
+                            name="email"
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
@@ -111,8 +115,12 @@ export default function LoginView({ onLoginSuccess }) {
                     </div>
 
                     <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1.5">Wachtwoord</label>
+                        <label htmlFor="login-password" className="block text-xs font-medium text-slate-300 mb-1.5">
+                            Wachtwoord
+                        </label>
                         <input
+                            id="login-password"
+                            name="password"
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}

@@ -5,7 +5,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://10.69.0
 
 export async function handleApiResponse(response, defaultErrorMessage = 'Netwerkverzoek mislukt') {
     if (response.status === 401 || response.status === 403) {
-        logout();
+        await logout().catch(() => {});
         window.location.reload();
         throw new Error('Sessie verlopen of geen toegang. Log opnieuw in.');
     }
