@@ -1,32 +1,35 @@
 package nl.fleethub.backend.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import java.util.Arrays;
+
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    @Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:5173}")
+    private String allowedOrigins;
+
     @Override
-    public void configureMessageBroker(MessageBrokerRegistry registry) {
-        // Berichten met prefix '/topic' worden afgehandeld door de simple in-memory broker
-        registry.enableSimpleBroker("/topic");
-        // Berichten met prefix '/app' worden gerouteerd naar @MessageMapping methoden
-        registry.setApplicationDestinationPrefixes("/app");
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        config.enableSimpleBroker("/topic");
+        config.setApplicationDestinationPrefixes("/app");
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // Handshake-endpoint voor de client verbinding
+        String[] origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isEmpty())
+                .toArray(String[]::new);
+
         registry.addEndpoint("/ws/fleet")
-                .setAllowedOriginPatterns(
-                        "http://10.69.0.48:3000",
-                        "http://10.69.0.48",
-                        "http://localhost:3000",
-                        "http://localhost:5173"
-                );
+                .setAllowedOriginPatterns(origins);
     }
 }

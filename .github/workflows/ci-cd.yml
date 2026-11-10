@@ -161,7 +161,6 @@ jobs:
           name: frontend-coverage-report
           path: FleetHub_Frontend/coverage
 
-      # OpenVPN Verbinding naar Fontys Netlab
       - name: Connect to Fontys Netlab OpenVPN
         run: |
           sudo apt-get install -y openvpn iproute2 curl
@@ -206,7 +205,6 @@ jobs:
           echo "SonarQube is bereikbaar!"
           rm -f vpn-auth.txt
 
-      # SonarQube Scanner uitvoeren met gegarandeerde Java 21 runtime
       - name: Code Quality & Coverage Analysis (Self-Hosted SonarQube)
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -218,14 +216,12 @@ jobs:
           
           SCANNER_DIR="/tmp/sonar-scanner-${SCANNER_VERSION}-linux-x64"
 
-          # Vervang de gebundelde Java 17 door een symlink naar de runner Java 21
           rm -rf "${SCANNER_DIR}/jre"
           ln -s "${JAVA_HOME}" "${SCANNER_DIR}/jre"
 
           echo "Gebruikte Java versie:"
           "${SCANNER_DIR}/jre/bin/java" -version
 
-          # Start de analyse
           "${SCANNER_DIR}/bin/sonar-scanner" \
             -Dsonar.scanner.skipJreProvisioning=true \
             -Dsonar.scanner.socketTimeout=120 \
@@ -346,15 +342,32 @@ jobs:
 
       - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
+          envs: MYSQL_ROOT_PASSWORD,MYSQL_PASSWORD,JWT_SECRET
           script: |
             cd ~
+
+            # Genereer automatisch de afgeschermde .env op de VPS
+            cat <<EOF > .env
+            MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
+            MYSQL_USER=fleethub
+            MYSQL_PASSWORD=$MYSQL_PASSWORD
+            JWT_SECRET=$JWT_SECRET
+            CORS_ALLOWED_ORIGINS=http://10.69.0.48:3000,http://10.69.0.48,http://localhost:3000,http://localhost:5173
+            EOF
+
+            chmod 600 .env
+
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            docker compose -f docker-compose.prod.yml up -d mysql-test mysql-prod sonarqube
-            docker compose -f docker-compose.prod.yml pull ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
-            docker compose -f docker-compose.prod.yml up -d --no-deps ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}
-            docker image prune -f
+            docker compose -f docker-compose.prod.yml up -d mysql-test mysql-prod sonarqube[cite: 1, 2]
+            docker compose -f docker-compose.prod.yml pull ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}[cite: 1, 2]
+            docker compose -f docker-compose.prod.yml up -d --no-deps ${{ steps.env-targets.outputs.BE_SERVICE }} ${{ steps.env-targets.outputs.FE_SERVICE }}[cite: 1, 2]
+            docker image prune -f[cite: 1, 2]
