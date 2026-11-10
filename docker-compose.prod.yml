@@ -1,6 +1,7 @@
 services:
   mysql:
     image: mysql:8.0
+    container_name: fleethub-mysql-prod
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -11,17 +12,41 @@ services:
       - mysql_data:/var/lib/mysql
     ports:
       - "3306:3306"
+    networks:
+      - fleethub-prod-net
 
   backend:
     image: ghcr.io/jayverrijt/fleethub-backend:latest
+    container_name: fleethub-backend-prod
     restart: always
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/fleethub?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-fleethub}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
-      CORS_ALLOWED_ORIGINS: "http://10.69.0.48:3000,http://10.69.0.48,http://localhost:3000,http://localhost:5173"
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://10.69.0.48:3000,http://10.69.0.48,http://localhost:3000,http://localhost:5173}
+      APP_CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://10.69.0.48:3000,http://10.69.0.48,http://localhost:3000,http://localhost:5173}
     depends_on:
       - mysql
     ports:
       - "8080:8080"
+    networks:
+      - fleethub-prod-net
+
+  frontend:
+    image: ghcr.io/jayverrijt/fleethub-frontend:latest
+    container_name: fleethub-frontend-prod
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - fleethub-prod-net
+
+volumes:
+  mysql_data:
+
+networks:
+  fleethub-prod-net:
+    driver: bridge
