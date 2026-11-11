@@ -219,9 +219,6 @@ jobs:
           rm -rf "${SCANNER_DIR}/jre"
           ln -s "${JAVA_HOME}" "${SCANNER_DIR}/jre"
 
-          echo "Gebruikte Java versie:"
-          "${SCANNER_DIR}/jre/bin/java" -version
-
           "${SCANNER_DIR}/bin/sonar-scanner" \
             -Dsonar.scanner.skipJreProvisioning=true \
             -Dsonar.scanner.socketTimeout=120 \
@@ -266,12 +263,12 @@ jobs:
           prerelease: false
 
   # ==========================================
-  # FASE 5: DEPLOYMENT NAAR VPS
+  # FASE 5a: DEPLOYMENT TEST ENVIRONMENT (Feature Branches)
   # ==========================================
-  deploy-to-vps:
-    name: 5. CD - Deploy to VPS
+  deploy-test:
+    name: 5a. CD - Deploy to Test VPS (Port 3000 / 8081)
     needs: sonar-analysis
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref_name != 'main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -300,14 +297,14 @@ jobs:
           context: ./FleetHub_Backend
           file: ./FleetHub_Backend/Dockerfile
           push: true
-          tags: ghcr.io/jayverrijt/fleethub-backend:latest
+          tags: ghcr.io/jayverrijt/fleethub-backend:test
 
       - uses: docker/build-push-action@v5
         with:
           context: ./FleetHub_Frontend
           file: ./FleetHub_Frontend/Dockerfile
           push: true
-          tags: ghcr.io/jayverrijt/fleethub-frontend:latest
+          tags: ghcr.io/jayverrijt/fleethub-frontend:test
 
       - name: Connect to Fontys Netlab OpenVPN
         run: |
@@ -329,36 +326,108 @@ jobs:
           source: "docker-compose.prod.yml"
           target: "~"
 
-      - name: Deploy to VPS via SSH
+      - name: Deploy Test Containers via SSH
         uses: appleboy/ssh-action@v1.0.3
         env:
           MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
-          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          envs: MYSQL_ROOT_PASSWORD,MYSQL_PASSWORD,JWT_SECRET
+          envs: MYSQL_ROOT_PASSWORD,JWT_SECRET
           script: |
             cd ~
-
-            # 1. Genereer de veilige .env op de VPS
-            cat <<EOF > .env
-            MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
-            MYSQL_USER=fleethub
-            MYSQL_PASSWORD=$MYSQL_PASSWORD
-            JWT_SECRET=$JWT_SECRET
-            CORS_ALLOWED_ORIGINS=http://10.69.0.48:3000,http://10.69.0.48,http://localhost:3000,http://localhost:5173
-            EOF
-
-            chmod 600 .env
-
-            # 2. Inloggen op GHCR en containers herstarten met de nieuwe images
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            docker compose -f docker-compose.prod.yml up -d mysql
-            docker compose -f docker-compose.prod.yml pull backend frontend
-            docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps backend frontend
+            docker compose -f docker-compose.prod.yml up -d mysql-test
+            docker compose -f docker-compose.prod.yml pull backend-test frontend-test
+            docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps backend-test frontend-test
             docker image prune -f
 
+  # ==========================================
+  # FASE 5b: DEPLOYMENT PRODUCTION ENVIRONMENT (Alleen Main)
+  # ==========================================
+  deploy-prod:
+    name: 5b. CD - Deploy to Production VPS (Port 80 / 8080)
+    needs: sonar-analysis
+    if: github.event_name == 'push' && github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: compiled-spring-jar
+          path: FleetHub_Backend/build/libs/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: built-frontend-dist
+          path: FleetHub_Frontend/dist/
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./FleetHub_Backend
+          file: ./FleetHub_Backend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/jayverrijt/fleethub-backend:latest
+            ghcr.io/jayverrijt/fleethub-backend:v${{ github.run_number }}
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./FleetHub_Frontend
+          file: ./FleetHub_Frontend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/jayverrijt/fleethub-frontend:latest
+            ghcr.io/jayverrijt/fleethub-frontend:v${{ github.run_number }}
+
+      - name: Connect to Fontys Netlab OpenVPN
+        run: |
+          sudo apt-get install -y openvpn
+          echo "${{ secrets.OPENVPN_USER }}" > vpn-auth.txt
+          echo "${{ secrets.OPENVPN_PASSWORD }}" >> vpn-auth.txt
+          echo "${{ secrets.OPENVPN_CONFIG }}" > client.ovpn
+          sudo openvpn --config client.ovpn --auth-user-pass vpn-auth.txt --tun-mtu 1500 --mssfix 1400 --daemon
+          sleep 10
+          rm -f vpn-auth.txt
+
+      - name: Sync docker-compose.prod.yml to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: "docker-compose.prod.yml"
+          target: "~"
+
+      - name: Deploy Production Containers via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          envs: MYSQL_ROOT_PASSWORD,JWT_SECRET
+          script: |
+            cd ~
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            docker compose -f docker-compose.prod.yml up -d mysql-prod
+            docker compose -f docker-compose.prod.yml pull backend-prod frontend-prod
+            docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps backend-prod frontend-prod
+            docker image prune -f
