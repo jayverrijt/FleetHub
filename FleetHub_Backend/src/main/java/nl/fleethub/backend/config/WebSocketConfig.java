@@ -13,13 +13,13 @@ import java.util.Arrays;
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    private final String allowedOrigins;
+    @Value("${app.cors.allowed-origins:https://fleethub.local}")
+    private String allowedOrigins;
 
     public WebSocketConfig() {
-        this.allowedOrigins = "";
     }
 
-    public WebSocketConfig(@Value("${app.cors.allowed-origins:}") String allowedOrigins) {
+    public WebSocketConfig(String allowedOrigins) {
         this.allowedOrigins = allowedOrigins;
     }
 

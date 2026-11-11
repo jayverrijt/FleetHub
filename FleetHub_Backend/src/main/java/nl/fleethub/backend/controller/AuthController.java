@@ -26,9 +26,9 @@ public class AuthController {
         // Maak een beveiligde HttpOnly cookie aan voor het JWT-token
         Cookie jwtCookie = new Cookie("jwt_token", authResponse.getToken());
         jwtCookie.setHttpOnly(true); // Niet uitleesbaar via JavaScript (XSS-bescherming!)
-        jwtCookie.setSecure(false);  // Zet op 'true' in productie bij HTTPS
+        jwtCookie.setSecure(false); // Zet op true wanneer we HTTPS gaan gebruiken
         jwtCookie.setPath("/");
-        jwtCookie.setMaxAge(86400);  // 24 uur geldig
+        jwtCookie.setMaxAge(86400);  // 24 uur
         response.addCookie(jwtCookie);
 
         // We sturen de gebruikersinfo terug in de body (zonder dat het token kwetsbaar in JS staat)

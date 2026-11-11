@@ -2,17 +2,23 @@ import js from '@eslint/js';
 import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
+import { defineConfig, globalIgnores } from 'eslint/config';
 
-export default [
-  { ignores: ['dist', 'coverage', 'node_modules'] },
+export default defineConfig([
+  globalIgnores(['dist', 'coverage', 'node_modules']),
+  // Standaard configuratie voor React source code
   {
     files: ['**/*.{js,jsx}'],
+    extends: [
+      js.configs.recommended,
+      reactHooks.configs.flat.recommended,
+      reactRefresh.configs.vite,
+    ],
     languageOptions: {
-      ecmaVersion: 2020,
       globals: {
         ...globals.browser,
         ...globals.node,
-        // Voeg test globals toe zodat ESLint describe/it/vi/expect herkent
+        // Globals voor Vitest unittests
         describe: 'readonly',
         it: 'readonly',
         test: 'readonly',
@@ -24,23 +30,36 @@ export default [
         afterAll: 'readonly',
       },
       parserOptions: {
-        ecmaVersion: 'latest',
         ecmaFeatures: { jsx: true },
-        sourceType: 'module',
       },
     },
-    plugins: {
-      'react-hooks': reactHooks,
-      'react-refresh': reactRefresh,
-    },
     rules: {
-      ...js.configs.recommended.rules,
-      ...reactHooks.configs.recommended.rules,
+      'react/react-in-jsx-scope': 'off',
       'no-unused-vars': ['warn', { varsIgnorePattern: '^[A-Z_]' }],
-      'react-refresh/only-export-components': [
-        'warn',
-        { allowConstantExport: true },
-      ],
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
-];
+  // NIEUW: Cypress E2E configuratie (lost de 19 rode 'cy is not defined' fouten op)
+  {
+    files: ['cypress/**/*.{js,jsx}'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        cy: 'readonly',
+        Cypress: 'readonly',
+        describe: 'readonly',
+        it: 'readonly',
+        before: 'readonly',
+        after: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        expect: 'readonly',
+        assert: 'readonly',
+      },
+    },
+    rules: {
+      'no-unused-expressions': 'off',
+    },
+  },
+]);

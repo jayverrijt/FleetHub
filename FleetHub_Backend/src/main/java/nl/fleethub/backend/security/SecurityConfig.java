@@ -59,20 +59,20 @@ public class SecurityConfig {
                         // 1. Publiek toegankelijk (zonder inloggen)
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/tracking/**").permitAll()
-                        .requestMatchers("/ws/fleet/**").permitAll()
+                        .requestMatchers("/ws/fleet/**").permitAll()   // WebSocket handshake
+                        .requestMatchers("/api/fleet/**").permitAll()  // <-- Voeg deze regel toe voor de vloot-snapshot!
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // 2. Chauffeur (InDrive stops en chauffeursroutes)
+                        // 2. Chauffeur (InDrive systeem)
                         .requestMatchers("/api/driver/**").hasAuthority("ROLE_COURIER")
                         .requestMatchers("/api/stops/**").hasAuthority("ROLE_COURIER")
 
-                        // 3. Routes: toegankelijk voor zowel chauffeur als dispatcher
+                        // 3. Routes: toegankelijk voor chauffeur (eigen routes) en dispatcher
                         .requestMatchers("/api/routes/**").hasAnyAuthority("ROLE_COURIER", "ROLE_DISPATCHER")
 
-                        // 4. Dispatcher: uitsluitend wagenparkbeheer
+                        // 4. Vlootbeheer uitsluitend voor Dispatcher
                         .requestMatchers("/api/vehicles/**").hasAuthority("ROLE_DISPATCHER")
 
-                        // 5. Fallback: alles wat hierboven niet staat vereist een geldige login
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

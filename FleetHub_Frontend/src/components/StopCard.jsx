@@ -1,43 +1,75 @@
-import 'react';
+import React from 'react';
 
-export default function StopCard({ stop, onStatusUpdate, isUpdating }) {
-    const isCompleted = stop.status === 'DELIVERED' || stop.status === 'FAILED_NOT_HOME';
+export default function StopCard({ stop, onStatusUpdate, isUpdating = false }) {
+    if (!stop) return null;
+
+    const isDelivered = stop.status === 'DELIVERED';
+    const isFailed = stop.status === 'FAILED_NOT_HOME' || stop.status === 'FAILED';
+    const isPending = stop.status === 'PENDING';
+    const isCompleted = isDelivered || isFailed;
+
+    const getBadgeStyle = () => {
+        if (isDelivered) return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+        if (isFailed) return 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+        return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+    };
 
     return (
-        <div className={`stop-card ${isCompleted ? 'completed' : ''}`}>
-            <div className="stop-header">
-                <span className="stop-badge">Stop #{stop.sequenceOrder}</span>
-                <span className={`status-pill status-${stop.status.toLowerCase()}`}>
-          {stop.status}
-        </span>
+        <div
+            className={`bg-slate-950 border border-slate-800 rounded-xl p-3.5 shadow-sm transition-all hover:border-slate-700 ${
+                isCompleted ? 'completed' : ''
+            }`}
+        >
+            {/* Header: Stop volgnummer + Status Badge */}
+            <div className="flex justify-between items-center mb-1.5">
+                <span className="text-xs font-bold text-blue-400">
+                    Stop #{stop.sequenceOrder}
+                </span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getBadgeStyle()}`}>
+                    {stop.status}
+                </span>
             </div>
 
-            <div className="stop-body">
-                <h3 className="recipient-name">{stop.recipientName}</h3>
-                <p className="order-number">Order: <strong>{stop.orderNumber}</strong></p>
-                <p className="address">{stop.address}, {stop.city}</p>
+            {/* Klant en Order info */}
+            <div className="text-sm font-semibold text-white">{stop.recipientName}</div>
+            <div className="text-xs text-slate-400 font-mono mt-0.5">
+                <span>Order: </span>
+                <span>{stop.orderNumber}</span>
             </div>
 
-            {/* US5b: Knoppen zijn uitgeschakeld zodra de levering voltooid is */}
-            {!isCompleted ? (
-                <div className="stop-actions">
+            {/* Adres */}
+            <div className="text-xs text-slate-300 mt-1">
+                {stop.address}, {stop.city}
+            </div>
+
+            {/* Actieknoppen voor bezorging */}
+            {isPending && onStatusUpdate && (
+                <div className="flex gap-2 mt-3 pt-2.5 border-t border-slate-800/80">
                     <button
-                        className="btn btn-delivered"
-                        disabled={isUpdating}
+                        type="button"
                         onClick={() => onStatusUpdate(stop.id, 'DELIVERED')}
+                        disabled={isUpdating}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-1.5 px-3 rounded-lg text-xs transition-colors cursor-pointer"
                     >
                         Geleverd
                     </button>
                     <button
-                        className="btn btn-failed"
-                        disabled={isUpdating}
+                        type="button"
                         onClick={() => onStatusUpdate(stop.id, 'FAILED_NOT_HOME')}
+                        disabled={isUpdating}
+                        className="flex-1 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-semibold py-1.5 px-3 rounded-lg text-xs transition-colors cursor-pointer"
                     >
                         Niet Thuis
                     </button>
                 </div>
-            ) : (
-                <p className="completion-label">Afgehandeld</p>
+            )}
+
+            {/* Completion label */}
+            {isCompleted && (
+                <div className="mt-3 pt-2.5 border-t border-slate-800/80 text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span>Afgehandeld</span>
+                </div>
             )}
         </div>
     );

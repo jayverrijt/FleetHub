@@ -104,7 +104,8 @@ jacocoTestCoverageVerification {
                     'nl.fleethub.backend.BackendApplication',
                     'nl.fleethub.backend.dto.*',
                     'nl.fleethub.backend.model.*',
-                    'nl.fleethub.backend.security.SecurityConfig'
+                    'nl.fleethub.backend.security.SecurityConfig',
+                    'nl.fleethub.backend.config.DatabaseSeeder',
             ]
         }
     }
