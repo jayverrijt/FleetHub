@@ -1,5 +1,9 @@
 name: FleetHub CI/CD
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
@@ -219,9 +223,6 @@ jobs:
           rm -rf "${SCANNER_DIR}/jre"
           ln -s "${JAVA_HOME}" "${SCANNER_DIR}/jre"
 
-          echo "Gebruikte Java versie:"
-          "${SCANNER_DIR}/jre/bin/java" -version
-
           "${SCANNER_DIR}/bin/sonar-scanner" \
             -Dsonar.scanner.skipJreProvisioning=true \
             -Dsonar.scanner.socketTimeout=120 \
@@ -344,7 +345,6 @@ jobs:
           script: |
             cd ~
 
-            # 1. Genereer de veilige .env op de VPS
             cat <<EOF > .env
             MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
             MYSQL_USER=fleethub
@@ -355,7 +355,6 @@ jobs:
 
             chmod 600 .env
 
-            # 2. Inloggen op GHCR en containers herstarten met de nieuwe images
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
             docker compose -f docker-compose.prod.yml up -d mysql
             docker compose -f docker-compose.prod.yml pull backend frontend
