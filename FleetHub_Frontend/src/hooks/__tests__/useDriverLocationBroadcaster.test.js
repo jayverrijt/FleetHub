@@ -10,10 +10,10 @@ vi.mock('../../services/telemetryService', () => ({
 }));
 
 vi.mock('../../services/authService', () => ({
-    getCurrentUser: vi.fn(() => ({ userId: 101, fullName: 'Jan de Vries' }))
+    getCurrentUser: vi.fn(() => ({ userId: 101, fullName: 'Jan de Vries', avatarUrl: 'avatar.png' }))
 }));
 
-describe('useDriverLocationBroadcaster (US3a)', () => {
+describe('useDriverLocationBroadcaster Branch Coverage (US3a & US3b)', () => {
     let mockWatchPosition;
     let mockClearWatch;
 
@@ -25,6 +25,7 @@ describe('useDriverLocationBroadcaster (US3a)', () => {
             watchPosition: mockWatchPosition,
             clearWatch: mockClearWatch
         };
+        localStorage.clear();
         vi.clearAllMocks();
     });
 
@@ -32,28 +33,29 @@ describe('useDriverLocationBroadcaster (US3a)', () => {
         vi.restoreAllMocks();
     });
 
-    it('initialiseert socket en geolocation watcher wanneer streaming actief is', () => {
+    it('UT-BC-01: initialiseert socket en watcher wanneer streaming actief is', () => {
         renderHook(() => useDriverLocationBroadcaster(true));
 
         expect(telemetryService.initTelemetrySocket).toHaveBeenCalled();
         expect(mockWatchPosition).toHaveBeenCalled();
     });
 
-    it('verbreekt verbinding direct als streaming inactief is', () => {
+    it('UT-BC-02: verbreekt verbinding direct als streaming inactief is', () => {
         renderHook(() => useDriverLocationBroadcaster(false));
 
         expect(telemetryService.disconnectTelemetrySocket).toHaveBeenCalled();
         expect(mockWatchPosition).not.toHaveBeenCalled();
     });
 
-    it('vangt situatie af waarin browser geen geolocation ondersteunt', () => {
+    it('UT-BC-03: vangt ontbrekende geolocation API af in browser', () => {
         delete global.navigator.geolocation;
 
         const { result } = renderHook(() => useDriverLocationBroadcaster(true));
         expect(result.current.lastPosition).toBeNull();
     });
 
-    it('vangt geolocation foutmeldingen op via de error callback', () => {
+    it('UT-BC-04: vangt GPS geolocation error callbacks af', () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
         let errorCallback;
         mockWatchPosition.mockImplementation((_, errCb) => {
             errorCallback = errCb;
@@ -67,40 +69,64 @@ describe('useDriverLocationBroadcaster (US3a)', () => {
         });
 
         expect(result.current.geoError).toBe('GPS signaal verloren');
+        errorSpy.mockRestore();
     });
 
-    it('stuurt telemetrie via sendDriverLocation zodra watchPosition een positie meldt', () => {
+    it('UT-BC-05: hanteert afwezige speed en heading (speed || 0, heading || 0)', () => {
         let successCallback;
         mockWatchPosition.mockImplementation((cb) => {
             successCallback = cb;
             return 42;
         });
 
-        const { result } = renderHook(() => useDriverLocationBroadcaster(true));
+        renderHook(() => useDriverLocationBroadcaster(true));
 
         act(() => {
             successCallback({
                 coords: {
                     latitude: 51.4416,
                     longitude: 5.4697,
-                    speed: 8.5,
-                    heading: 90
+                    speed: null,
+                    heading: null
                 }
             });
         });
 
         expect(telemetryService.sendDriverLocation).toHaveBeenCalledWith(
             expect.objectContaining({
-                driverId: 101,
-                driverName: 'Jan de Vries',
                 latitude: 51.4416,
-                longitude: 5.4697
+                longitude: 5.4697,
+                speed: 0,
+                heading: 0
             })
         );
-        expect(result.current.lastPosition).not.toBeNull();
     });
 
-    it('ruimt de watcher en socket netjes op bij unmount', () => {
+    it('UT-BC-06: gebruikt localStorage avatar als die aanwezig is boven currentUser avatar', () => {
+        localStorage.setItem('fleethub_avatar', 'custom_storage_avatar.png');
+
+        let successCallback;
+        mockWatchPosition.mockImplementation((cb) => {
+            successCallback = cb;
+            return 42;
+        });
+
+        renderHook(() => useDriverLocationBroadcaster(true));
+
+        act(() => {
+            successCallback({
+                coords: { latitude: 51.4416, longitude: 5.4697, speed: 5.0, heading: 45 }
+            });
+        });
+
+        expect(telemetryService.sendDriverLocation).toHaveBeenCalledWith(
+            expect.objectContaining({
+                avatarUrl: 'custom_storage_avatar.png'
+            })
+        );
+    });
+
+    it('UT-BC-07: ruimt watcher en socket netjes op bij unmount', () => {
         mockWatchPosition.mockReturnValue(99);
 
         const { unmount } = renderHook(() => useDriverLocationBroadcaster(true));

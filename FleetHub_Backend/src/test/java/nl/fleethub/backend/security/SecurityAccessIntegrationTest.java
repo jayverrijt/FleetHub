@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest({TrackingController.class, StopController.class, RouteController.class, VehicleController.class})
 @Import({SecurityConfig.class, JwtTokenProvider.class})
-@TestPropertySource(properties = "app.cors.allowed-origins=http://localhost:5173")
+@TestPropertySource(properties = "app.cors.allowed-origins=https://frontend.fleethub.test")
 class SecurityAccessIntegrationTest {
 
     @Autowired
@@ -71,7 +71,6 @@ class SecurityAccessIntegrationTest {
     @DisplayName("SEC-ACC-03: Ingelogde Chauffeur (ROLE_COURIER) heeft toegang tot stops")
     @WithMockUser(authorities = "ROLE_COURIER")
     void stops_AccessibleForCourier() throws Exception {
-        // Geeft 400 i.p.v. 401/403 omdat er geen body meegegeven is, wat bewijst dat de autorisatielaag gepasseerd is
         mockMvc.perform(patch("/api/stops/1/status"))
                 .andExpect(status().isBadRequest());
     }

@@ -13,10 +13,9 @@ import java.util.Arrays;
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    @Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:5173}")
-    private String allowedOrigins = "http://localhost:3000,http://localhost:5173";
+    @Value("${app.cors.allowed-origins:}")
+    private String allowedOrigins;
 
-    // Constructor voor tests (optioneel, handig als unittests specifieke origins willen injecteren)
     public WebSocketConfig() {
     }
 
@@ -32,14 +31,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        String originsToParse = (allowedOrigins != null && !allowedOrigins.isBlank())
-                ? allowedOrigins
-                : "http://localhost:3000,http://localhost:5173";
-
-        String[] origins = Arrays.stream(originsToParse.split(","))
+        String[] origins = (allowedOrigins != null && !allowedOrigins.isBlank())
+                ? Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
-                .toArray(String[]::new);
+                .toArray(String[]::new)
+                : new String[]{"*"};
 
         registry.addEndpoint("/ws/fleet")
                 .setAllowedOriginPatterns(origins);

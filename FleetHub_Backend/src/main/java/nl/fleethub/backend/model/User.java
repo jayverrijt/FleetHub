@@ -23,6 +23,17 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
+    @Column(name = "avatar_url")
+    private String avatarUrl;
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
+    }
+
     public User() {}
 
     public User(Long id, String email, String password, String fullName, Role role) {

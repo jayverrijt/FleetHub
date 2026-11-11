@@ -29,9 +29,11 @@ export function useDriverLocationBroadcaster(isStreamingActive = true) {
 
         const handleSuccess = (position) => {
             const { latitude, longitude, speed, heading } = position.coords;
+            const avatar = localStorage.getItem('fleethub_avatar') || currentUser.avatarUrl || null;
             const payload = {
                 driverId: currentUser.userId || currentUser.id || 1,
                 driverName: currentUser.fullName || 'Chauffeur',
+                avatarUrl: avatar, // Geüploade foto direct meesturen naar de dispatcher
                 vehicleId: 1,
                 latitude,
                 longitude,
@@ -45,7 +47,6 @@ export function useDriverLocationBroadcaster(isStreamingActive = true) {
 
             sendDriverLocation(payload);
         };
-
         const handleError = (error) => {
             console.warn('[Geolocation Error]:', error.message);
             setGeoError(error.message);

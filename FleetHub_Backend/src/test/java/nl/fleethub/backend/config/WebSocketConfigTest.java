@@ -2,50 +2,78 @@ package nl.fleethub.backend.config;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.ArgumentCaptor;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.StompWebSocketEndpointRegistration;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
 class WebSocketConfigTest {
 
-    @Mock
-    private MessageBrokerRegistry messageBrokerRegistry;
-
-    @Mock
-    private StompEndpointRegistry stompEndpointRegistry;
-
-    @Mock
-    private StompWebSocketEndpointRegistration endpointRegistration;
-
     @Test
-    @DisplayName("UT-WS-01: Configures broker prefixes /topic and /app")
-    void configureMessageBroker_RegistersCorrectPrefixes() {
+    @DisplayName("UT-WS-01: configureMessageBroker stelt topic broker en /app prefix in")
+    void configureMessageBroker_ConfiguresBroker() {
         WebSocketConfig config = new WebSocketConfig();
+        MessageBrokerRegistry registry = mock(MessageBrokerRegistry.class);
 
-        config.configureMessageBroker(messageBrokerRegistry);
+        config.configureMessageBroker(registry);
 
-        verify(messageBrokerRegistry, times(1)).enableSimpleBroker("/topic");
-        verify(messageBrokerRegistry, times(1)).setApplicationDestinationPrefixes("/app");
+        verify(registry, times(1)).enableSimpleBroker("/topic");
+        verify(registry, times(1)).setApplicationDestinationPrefixes("/app");
     }
 
     @Test
-    @DisplayName("UT-WS-02: Registers Stomp endpoint /ws/fleet with CORS patterns")
-    void registerStompEndpoints_RegistersEndpointWithCors() {
-        WebSocketConfig config = new WebSocketConfig();
-        when(stompEndpointRegistry.addEndpoint("/ws/fleet")).thenReturn(endpointRegistration);
-        when(endpointRegistration.setAllowedOriginPatterns(any(String[].class))).thenReturn(endpointRegistration);
+    @DisplayName("UT-WS-02: registerStompEndpoints parseert geconfigureerde allowed origins correct")
+    void registerStompEndpoints_CustomOrigins() {
+        WebSocketConfig config = new WebSocketConfig("https://app1.fleethub.test, https://app2.fleethub.test");
+        StompEndpointRegistry registry = mock(StompEndpointRegistry.class);
+        StompWebSocketEndpointRegistration registration = mock(StompWebSocketEndpointRegistration.class);
 
-        config.registerStompEndpoints(stompEndpointRegistry);
+        when(registry.addEndpoint("/ws/fleet")).thenReturn(registration);
+        when(registration.setAllowedOriginPatterns(any(String[].class))).thenReturn(registration);
 
-        verify(stompEndpointRegistry, times(1)).addEndpoint("/ws/fleet");
-        verify(endpointRegistration, times(1)).setAllowedOriginPatterns(any(String[].class));
+        config.registerStompEndpoints(registry);
+
+        ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
+        verify(registry).addEndpoint("/ws/fleet");
+        verify(registration).setAllowedOriginPatterns(captor.capture());
+        assertArrayEquals(new String[]{"https://app1.fleethub.test", "https://app2.fleethub.test"}, captor.getValue());
+    }
+
+    @Test
+    @DisplayName("UT-WS-03: registerStompEndpoints valt terug op wildcard bij lege origins string")
+    void registerStompEndpoints_BlankOrigins_FallbackWildcard() {
+        WebSocketConfig config = new WebSocketConfig("");
+        StompEndpointRegistry registry = mock(StompEndpointRegistry.class);
+        StompWebSocketEndpointRegistration registration = mock(StompWebSocketEndpointRegistration.class);
+
+        when(registry.addEndpoint("/ws/fleet")).thenReturn(registration);
+        when(registration.setAllowedOriginPatterns(any(String[].class))).thenReturn(registration);
+
+        config.registerStompEndpoints(registry);
+
+        ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
+        verify(registration).setAllowedOriginPatterns(captor.capture());
+        assertArrayEquals(new String[]{"*"}, captor.getValue());
+    }
+
+    @Test
+    @DisplayName("UT-WS-04: registerStompEndpoints valt terug op wildcard bij null origins")
+    void registerStompEndpoints_NullOrigins_FallbackWildcard() {
+        WebSocketConfig config = new WebSocketConfig(null);
+        StompEndpointRegistry registry = mock(StompEndpointRegistry.class);
+        StompWebSocketEndpointRegistration registration = mock(StompWebSocketEndpointRegistration.class);
+
+        when(registry.addEndpoint("/ws/fleet")).thenReturn(registration);
+        when(registration.setAllowedOriginPatterns(any(String[].class))).thenReturn(registration);
+
+        config.registerStompEndpoints(registry);
+
+        ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
+        verify(registration).setAllowedOriginPatterns(captor.capture());
+        assertArrayEquals(new String[]{"*"}, captor.getValue());
     }
 }

@@ -1,25 +1,35 @@
 package nl.fleethub.backend.controller;
 
 import nl.fleethub.backend.dto.DriverLocationPayload;
+import nl.fleethub.backend.service.FleetTelemetryService;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
-import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
+import java.util.Collection;
 
-@Controller
+@RestController
 public class DriverTelemetryController {
 
-    /**
-     * Vangt inkomende telemetrie van chauffeurs op via destination: /app/driver/location
-     * Stuurt deze direct door naar alle geabonneerde dispatchers op: /topic/fleet/locations
-     */
+    private final FleetTelemetryService telemetryService;
+
+    public DriverTelemetryController(FleetTelemetryService telemetryService) {
+        this.telemetryService = telemetryService;
+    }
+
     @MessageMapping("/driver/location")
     @SendTo("/topic/fleet/locations")
     public DriverLocationPayload broadcastDriverLocation(DriverLocationPayload telemetry) {
         if (telemetry.getTimestamp() == null) {
             telemetry.setTimestamp(Instant.now());
         }
-        return telemetry;
+        return telemetryService.recordTelemetry(telemetry);
+    }
+
+    @GetMapping("/api/fleet/positions")
+    public Collection<DriverLocationPayload> getActiveFleetPositions() {
+        return telemetryService.getActiveFleetSnapshot();
     }
 }
