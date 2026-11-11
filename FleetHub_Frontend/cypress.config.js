@@ -1,15 +1,12 @@
-// FleetHub_Frontend/cypress.config.js
-import { defineConfig } from 'cypress';
+import { defineConfig } from "cypress";
 
 export default defineConfig({
     e2e: {
-        baseUrl: 'http://localhost:5173',
+        baseUrl: process.env.CYPRESS_BASE_URL || "http://localhost:3000",
+        chromeWebSecurity: false,
         supportFile: false,
-        viewportWidth: 1280,
-        viewportHeight: 720,
-        video: false,
-        setupNodeEvents() {
-            // event listeners indien nodig
+        setupNodeEvents(on, config) {
+            // event listeners
         },
     },
 });
