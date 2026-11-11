@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -61,11 +62,16 @@ public class DriverProfileController {
             String newFilename = "driver_" + driverId + "_" + UUID.randomUUID().toString().substring(0, 8) + extension;
             Path targetPath = this.storageDirectory.resolve(newFilename);
 
-            Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+            try (InputStream inputStream = file.getInputStream()) {
+                Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
+            }
 
-            String baseUrl = (backendBaseUrl != null && !backendBaseUrl.isBlank())
-                    ? backendBaseUrl.replaceAll("/+$", "")
-                    : "";
+            String baseUrl = "";
+            if (backendBaseUrl != null && !backendBaseUrl.isBlank()) {
+                baseUrl = backendBaseUrl.endsWith("/")
+                        ? backendBaseUrl.substring(0, backendBaseUrl.length() - 1)
+                        : backendBaseUrl;
+            }
             String avatarUrl = baseUrl + "/uploads/avatars/" + newFilename;
 
             userRepository.findById(driverId).ifPresent(user -> {

@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react';
 import DEFAULT_AVATAR from '../assets/default-avatar.svg';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
-
+const rawApiUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_BASE_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
 export default function RouteView({ currentUser }) {
     const [avatarUrl, setAvatarUrl] = useState(
         () => currentUser?.avatarUrl || localStorage.getItem('fleethub_avatar') || DEFAULT_AVATAR
@@ -48,7 +48,6 @@ export default function RouteView({ currentUser }) {
 
     return (
         <div className="flex flex-col h-full min-h-[620px] bg-slate-900 text-slate-100 font-sans">
-            {/* Topbar met uploadbare Driver Avatar */}
             <header className="flex justify-between items-center px-4 py-3 bg-slate-950 border-b border-slate-800">
                 <div className="flex items-center gap-2">
           <span className="bg-blue-600 text-white font-extrabold text-[11px] px-2 py-0.5 rounded">
@@ -59,23 +58,27 @@ export default function RouteView({ currentUser }) {
           </span>
                 </div>
 
-                {/* Chauffeur Profiel Avatar + Upload Trigger */}
                 <div className="flex items-center gap-2.5">
           <span className="text-xs font-semibold text-blue-400">
             {driverName}
           </span>
 
-                    <div
-                        className="relative group cursor-pointer"
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={(e) => {
+                            void handleAvatarChange(e);
+                        }}
+                        accept="image/png, image/jpeg, image/webp"
+                        className="hidden"
+                    />
+
+                    <button
+                        type="button"
+                        aria-label="Profielfoto wijzigen"
                         onClick={() => fileInputRef.current?.click()}
+                        className="relative group cursor-pointer bg-transparent border-0 p-0 focus:outline-none"
                     >
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleAvatarChange}
-                            accept="image/png, image/jpeg, image/webp"
-                            className="hidden"
-                        />
                         <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-blue-500 bg-slate-800 flex items-center justify-center relative">
                             <img
                                 src={avatarUrl}
@@ -94,11 +97,9 @@ export default function RouteView({ currentUser }) {
                         <div className="absolute -bottom-1 -right-1 bg-blue-600 text-[10px] w-4 h-4 rounded-full flex items-center justify-center text-white shadow">
                             📷
                         </div>
-                    </div>
+                    </button>
                 </div>
             </header>
-
-            {/* Rest van RouteView */}
         </div>
     );
 }

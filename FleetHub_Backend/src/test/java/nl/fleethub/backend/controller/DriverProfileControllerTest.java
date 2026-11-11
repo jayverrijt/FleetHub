@@ -17,6 +17,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,7 +31,6 @@ class DriverProfileControllerTest {
 
     @BeforeEach
     void setUp() {
-        // Expliciet instantiëren met mock repository en een test-base-url
         controller = new DriverProfileController(userRepository, "https://api.fleethub.test");
 
         sampleUser = new User();
@@ -40,13 +40,13 @@ class DriverProfileControllerTest {
     }
 
     @Test
-    @DisplayName("UT-AVATAR-01: Upload geldige profielfoto combineert base URL en werkt user bij")
+    @DisplayName("UT-AVATAR-01: Upload geldige profielfoto combineert base URL en slaat avatar op")
     void uploadProfilePicture_Success() {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "avatar.png",
                 "image/png",
-                "dummy image bytes".getBytes()
+                "dummy image content bytes".getBytes()
         );
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
@@ -61,7 +61,6 @@ class DriverProfileControllerTest {
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         String avatarUrl = (String) body.get("avatarUrl");
 
-        // Verifieert dat de geconfigureerde base URL netjes vooraan staat en er geen hardcoded localhost is
         assertTrue(avatarUrl.startsWith("https://api.fleethub.test/uploads/avatars/driver_1_"));
         assertEquals("Profielfoto succesvol bijgewerkt", body.get("message"));
 
@@ -71,7 +70,7 @@ class DriverProfileControllerTest {
     }
 
     @Test
-    @DisplayName("UT-AVATAR-02: Leeg bestand geeft HTTP 400 Bad Request")
+    @DisplayName("UT-AVATAR-02: Leeg bestand retourneert HTTP 400 Bad Request")
     void uploadProfilePicture_EmptyFile_Returns400() {
         MockMultipartFile emptyFile = new MockMultipartFile(
                 "file",
@@ -88,7 +87,7 @@ class DriverProfileControllerTest {
     }
 
     @Test
-    @DisplayName("UT-AVATAR-03: Null bestand geeft HTTP 400 Bad Request")
+    @DisplayName("UT-AVATAR-03: Null bestand retourneert HTTP 400 Bad Request")
     void uploadProfilePicture_NullFile_Returns400() {
         ResponseEntity<?> response = controller.uploadProfilePicture(null, 1L);
 
@@ -101,9 +100,9 @@ class DriverProfileControllerTest {
     void uploadProfilePicture_InvalidContentType_Returns415() {
         MockMultipartFile invalidFile = new MockMultipartFile(
                 "file",
-                "document.pdf",
+                "manual.pdf",
                 "application/pdf",
-                "%PDF-1.4 dummy content".getBytes()
+                "%PDF-1.4 dummy pdf bytes".getBytes()
         );
 
         ResponseEntity<?> response = controller.uploadProfilePicture(invalidFile, 1L);
@@ -113,15 +112,15 @@ class DriverProfileControllerTest {
     }
 
     @Test
-    @DisplayName("UT-AVATAR-05: Fallback naar relatief pad wanneer base URL leeg of null is")
+    @DisplayName("UT-AVATAR-05: Fallback naar relatief pad wanneer base URL leeg of niet geconfigureerd is")
     void uploadProfilePicture_EmptyBaseUrl_GeneratesRelativeUrl() {
         DriverProfileController controllerWithoutBaseUrl = new DriverProfileController(userRepository, "");
 
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "photo.jpg",
-                "image/jpeg",
-                "bytes".getBytes()
+                "profile.webp",
+                "image/webp",
+                "dummy webp bytes".getBytes()
         );
 
         when(userRepository.findById(2L)).thenReturn(Optional.of(sampleUser));

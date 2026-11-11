@@ -52,3 +52,6 @@ Thumbs.db
 *.jar
 *.war
 docker-compose.override.yml
+
+# Util files
+run-sonar.sh

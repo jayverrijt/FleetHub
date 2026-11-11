@@ -13,13 +13,13 @@ import java.util.Arrays;
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    @Value("${app.cors.allowed-origins:}")
-    private String allowedOrigins;
+    private final String allowedOrigins;
 
     public WebSocketConfig() {
+        this.allowedOrigins = "";
     }
 
-    public WebSocketConfig(String allowedOrigins) {
+    public WebSocketConfig(@Value("${app.cors.allowed-origins:}") String allowedOrigins) {
         this.allowedOrigins = allowedOrigins;
     }
 
@@ -36,7 +36,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
                 .toArray(String[]::new)
-                : new String[]{"*"};
+                : new String[]{"https://fleethub.local"};
 
         registry.addEndpoint("/ws/fleet")
                 .setAllowedOriginPatterns(origins);

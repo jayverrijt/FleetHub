@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { Client } from '@stomp/stompjs';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
-const WS_BROKER_URL =
+const rawApiUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_BASE_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;const WS_BROKER_URL =
     import.meta.env.VITE_WS_URL ||
     (API_BASE_URL.startsWith('http')
         ? API_BASE_URL.replace(/^http/, 'ws').replace(/\/api$/, '/ws/fleet')

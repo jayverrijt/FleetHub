@@ -13,9 +13,14 @@ export default function App() {
     // US3b: Realtime telemetrie via WebSocket subscription (/topic/fleet/locations)
     const { vehicles, isConnected: isFleetConnected } = useFleetTelemetry();
 
-    const handleLogout = () => {
-        logout();
-        setCurrentUser(null);
+    const handleLogout = async () => {
+        try {
+            await logout();
+        } catch (err) {
+            console.error('Fout bij uitloggen:', err);
+        } finally {
+            setCurrentUser(null);
+        }
     };
 
     const formatDisplayName = (user) => {
@@ -50,7 +55,9 @@ export default function App() {
               </span>
                             <button
                                 type="button"
-                                onClick={handleLogout}
+                                onClick={() => {
+                                    void handleLogout();
+                                }}
                                 className="text-xs sm:text-sm bg-red-600 hover:bg-red-700 text-white font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
                             >
                                 Uitloggen

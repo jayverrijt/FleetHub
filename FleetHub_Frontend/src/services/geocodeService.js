@@ -1,73 +1,45 @@
-const geocodeCache = new Map();
+const NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org/search';
+const DEFAULT_COORDINATES = [51.4416, 5.4697];
 
 /**
- * Zet een adres en stad om naar [latitude, longitude] via OpenStreetMap Nominatim.
- *
- * @param {string} address
- * @param {string} city
- * @returns {Promise<[number, number]>}
+ * Hulpfunctie om Nominatim query uit te voeren en te parsen zonder codeduplicatie.
+ */
+async function fetchCoordinates(queryParams) {
+    try {
+        const response = await fetch(`${NOMINATIM_BASE_URL}?format=json&${queryParams}`);
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+            const lat = Number.parseFloat(data[0].lat);
+            const lon = Number.parseFloat(data[0].lon);
+
+            if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
+                return [lat, lon];
+            }
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Converteert een adres en woonplaats naar GPS coördinaten via OpenStreetMap Nominatim.
  */
 export async function geocodeAddress(address, city) {
-    const query = `${address}, ${city}, Netherlands`;
+    const query = `q=${encodeURIComponent(`${address}, ${city}, Netherlands`)}`;
+    const coords = await fetchCoordinates(query);
 
-    if (geocodeCache.has(query)) {
-        return geocodeCache.get(query);
+    if (coords) {
+        return coords;
     }
 
-    // 1. Zoek primair op volledig adres
-    try {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
-        const response = await fetch(url, {
-            headers: {
-                Accept: 'application/json',
-                'User-Agent': 'FleetHub-DriverApp/1.0'
-            }
-        });
+    // Fallback op stadsniveau
+    const cityQuery = `city=${encodeURIComponent(city)}&country=Netherlands`;
+    const cityCoords = await fetchCoordinates(cityQuery);
 
-        if (response.ok) {
-            const data = await response.json();
-            if (Array.isArray(data) && data.length > 0) {
-                const first = data[0];
-                const lat = Number.parseFloat(first.lat);
-                const lon = Number.parseFloat(first.lon);
-                if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
-                    const coords = [lat, lon];
-                    geocodeCache.set(query, coords);
-                    return coords;
-                }
-            }
-        }
-    } catch (error) {
-        console.warn(`Adres kon niet direct geocodeerd worden (${query}):`, error);
-    }
-
-    // 2. Fallback: zoek uitsluitend op stadsnaam indien straat niet gevonden wordt
-    try {
-        const cityUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ', Netherlands')}&limit=1`;
-        const cityRes = await fetch(cityUrl, {
-            headers: {
-                Accept: 'application/json',
-                'User-Agent': 'FleetHub-DriverApp/1.0'
-            }
-        });
-
-        if (cityRes.ok) {
-            const cityData = await cityRes.json();
-            if (Array.isArray(cityData) && cityData.length > 0) {
-                const fallback = cityData[0];
-                const fallbackLat = Number.parseFloat(fallback.lat);
-                const fallbackLon = Number.parseFloat(fallback.lon);
-                if (!Number.isNaN(fallbackLat) && !Number.isNaN(fallbackLon)) {
-                    const fallbackCoords = [fallbackLat, fallbackLon];
-                    geocodeCache.set(query, fallbackCoords);
-                    return fallbackCoords;
-                }
-            }
-        }
-    } catch (e) {
-        console.error('Fallback-geocodering op stadsniveau mislukt:', e);
-    }
-
-    // 3. Standaard coördinaten (Centrum Eindhoven) als alle verzoeken falen
-    return [51.4416, 5.4697];
+    return cityCoords || DEFAULT_COORDINATES;
 }

@@ -44,8 +44,8 @@ class WebSocketConfigTest {
     }
 
     @Test
-    @DisplayName("UT-WS-03: registerStompEndpoints valt terug op wildcard bij lege origins string")
-    void registerStompEndpoints_BlankOrigins_FallbackWildcard() {
+    @DisplayName("UT-WS-03: registerStompEndpoints valt terug op veilige origin bij lege origins string")
+    void registerStompEndpoints_BlankOrigins_FallbackSafeOrigin() {
         WebSocketConfig config = new WebSocketConfig("");
         StompEndpointRegistry registry = mock(StompEndpointRegistry.class);
         StompWebSocketEndpointRegistration registration = mock(StompWebSocketEndpointRegistration.class);
@@ -57,12 +57,12 @@ class WebSocketConfigTest {
 
         ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
         verify(registration).setAllowedOriginPatterns(captor.capture());
-        assertArrayEquals(new String[]{"*"}, captor.getValue());
+        assertArrayEquals(new String[]{"https://fleethub.local"}, captor.getValue());
     }
 
     @Test
-    @DisplayName("UT-WS-04: registerStompEndpoints valt terug op wildcard bij null origins")
-    void registerStompEndpoints_NullOrigins_FallbackWildcard() {
+    @DisplayName("UT-WS-04: registerStompEndpoints valt terug op veilige origin bij null origins")
+    void registerStompEndpoints_NullOrigins_FallbackSafeOrigin() {
         WebSocketConfig config = new WebSocketConfig(null);
         StompEndpointRegistry registry = mock(StompEndpointRegistry.class);
         StompWebSocketEndpointRegistration registration = mock(StompWebSocketEndpointRegistration.class);
@@ -74,6 +74,6 @@ class WebSocketConfigTest {
 
         ArgumentCaptor<String[]> captor = ArgumentCaptor.forClass(String[].class);
         verify(registration).setAllowedOriginPatterns(captor.capture());
-        assertArrayEquals(new String[]{"*"}, captor.getValue());
+        assertArrayEquals(new String[]{"https://fleethub.local"}, captor.getValue());
     }
 }
