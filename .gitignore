@@ -1,43 +1,82 @@
-### --- Environment & Secrets (CRUCIAAL) ---
+# Env en Secrets
+
 .env
 .env.*
 *.env
 *.env.local
 *.properties.local
 
-# Specifiek voor de Frontend submodule/map
+# Specifiek voor Frontend submodule
 FleetHub_Frontend/.env
 FleetHub_Frontend/.env.*
 FleetHub_Frontend/*.env
 FleetHub_Frontend/*.env.local
 
-### --- Java & Spring Boot (FleetHub_Backend) ---
-FleetHub_Backend/.gradle/
-FleetHub_Backend/build/
-FleetHub_Backend/out/
-FleetHub_Backend/bin/
-FleetHub_Backend/.settings/
-FleetHub_Backend/.project
-FleetHub_Backend/.classpath
-FleetHub_Backend/*.log
+# Bewaar voorbeeldbestanden wel voor assessoren
+!.env.example
+!FleetHub_Frontend/.env.example
 
-# Laat de Gradle Wrapper wel toe
-!FleetHub_Backend/gradle/wrapper/gradle-wrapper.jar
-!FleetHub_Backend/gradle/wrapper/gradle-wrapper.properties
-
-### --- Frontend (FleetHub_Frontend) ---
+# Frontend & Test Coverage (FleetHub_Frontend)
 node_modules/
 dist/
 dist-ssr/
 FleetHub_Frontend/node_modules/
 FleetHub_Frontend/dist/
+
+# Vitest / Jest Coverage rapporten en LCOV artefacten
+coverage/
+FleetHub_Frontend/coverage/
+*.lcov
+.nyc_output/
+
+# Logs & lokale caches
 *.local
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.eslintcache
+.vite/
+FleetHub_Frontend/.vite/
 
-### --- IDE's & Editors ---
+# Java & Gradle (FleetHub_Backend)
+HELP.md
+.gradle/
+build/
+out/
+bin/
+FleetHub_Backend/.gradle/
+FleetHub_Backend/build/
+FleetHub_Backend/out/
+FleetHub_Backend/bin/
+FleetHub_Backend/*.log
+
+# STS / Eclipse artefacten
+FleetHub_Backend/.settings/
+FleetHub_Backend/.project
+FleetHub_Backend/.classpath
+.apt_generated
+.factorypath
+.springBeans
+.sts4-cache
+
+# Behoud de Gradle Wrapper
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+!FleetHub_Backend/gradle/wrapper/gradle-wrapper.jar
+!FleetHub_Backend/gradle/wrapper/gradle-wrapper.properties
+
+# Lokale VPN-, Token- & Docker-bestanden
+*.jar
+*.war
+docker-compose.override.yml
+run-sonar.sh
+vpn-auth.txt
+client.ovpn
+*.ovpn
+/tmp/openvpn.log
+
+# IDE's, Editors & Besturingssysteem
 .idea/
 *.iml
 *.iws
@@ -47,11 +86,10 @@ pnpm-debug.log*
 *.swo
 .DS_Store
 Thumbs.db
+Desktop.ini
 
-### --- Docker & Build Artifacts ---
-*.jar
-*.war
-docker-compose.override.yml
-
-# Util files
-run-sonar.sh
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/nbdist/
+/.nb-gradle/
