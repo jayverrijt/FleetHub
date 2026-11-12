@@ -7,8 +7,12 @@ const mockFitBounds = vi.fn();
 const mockInvalidateSize = vi.fn();
 
 vi.mock('react-leaflet', () => ({
-    MapContainer: ({ children, center }) => (
-        <div data-testid="map-container" data-center={JSON.stringify(center)}>
+    MapContainer: ({ children, center, style }) => (
+        <div
+            data-testid="map-container"
+            data-center={JSON.stringify(center)}
+            data-height={style?.height || ''}
+        >
             {children}
         </div>
     ),
@@ -78,16 +82,17 @@ describe('RouteMap Component Unit Tests', () => {
             recipientName: 'Ongeldige Stop',
             address: 'Onbekend',
             city: 'Eindhoven',
-            latitude: null, // Moet gefilterd worden
+            latitude: null,
             longitude: null
         }
     ];
 
-    it('UT-ROUTEMAP-01: Rendert standaard Eindhoven center bij lege stops array', () => {
+    it('UT-ROUTEMAP-01: Rendert standaard Eindhoven center en default minHeight bij lege stops array', () => {
         const { getByTestId, queryAllByTestId } = render(<RouteMap stops={[]} />);
 
         const container = getByTestId('map-container');
         expect(container.getAttribute('data-center')).toBe(JSON.stringify([51.4416, 5.4697]));
+        expect(container.getAttribute('data-height')).toBe('350px');
         expect(queryAllByTestId('route-marker')).toHaveLength(0);
         expect(mockSetView).not.toHaveBeenCalled();
         expect(mockFitBounds).not.toHaveBeenCalled();
@@ -97,27 +102,24 @@ describe('RouteMap Component Unit Tests', () => {
         const handleSelectStop = vi.fn();
 
         const { getAllByTestId, getByTestId, getByText } = render(
-            <RouteMap stops={mockStops} onSelectStop={handleSelectStop} />
+            <RouteMap stops={mockStops} onSelectStop={handleSelectStop} minHeight="250px" />
         );
 
-        // Stop 99 (null lat/lng) is weggefilterd -> 3 markers over
+        expect(getByTestId('map-container').getAttribute('data-height')).toBe('250px');
+
         const markers = getAllByTestId('route-marker');
         expect(markers).toHaveLength(3);
 
-        // Controleer volgorde: Eerste Stop (seq 1), Tweede Stop (seq 2), Derde Stop (seq 3)
         expect(markers[0].getAttribute('data-lat')).toBe('51.441');
         expect(markers[1].getAttribute('data-lat')).toBe('51.442');
         expect(markers[2].getAttribute('data-lat')).toBe('51.443');
 
-        // Polyline aanwezig met 3 punten
         const polyline = getByTestId('route-polyline');
         expect(polyline.getAttribute('data-count')).toBe('3');
 
-        // fitBounds moet aangeroepen zijn bij > 1 posities
         expect(mockInvalidateSize).toHaveBeenCalled();
         expect(mockFitBounds).toHaveBeenCalled();
 
-        // Popups bevatten recipient names
         expect(getByText(/Stop #1: Eerste Stop/i)).toBeDefined();
         expect(getByText(/Stop #2: Tweede Stop/i)).toBeDefined();
         expect(getByText(/Stop #3: Derde Stop/i)).toBeDefined();
@@ -159,7 +161,6 @@ describe('RouteMap Component Unit Tests', () => {
             expect.objectContaining({ recipientName: 'Tweede Stop' })
         );
 
-        // Rerender zonder onSelectStop callback prop
         rerender(<RouteMap stops={[mockStops[0]]} />);
         expect(() => fireEvent.click(marker)).not.toThrow();
     });
@@ -168,13 +169,8 @@ describe('RouteMap Component Unit Tests', () => {
         const { getAllByTestId } = render(<RouteMap stops={mockStops} />);
         const markers = getAllByTestId('route-marker');
 
-        // Stop 1 (PENDING) -> #2563eb (blauw)
         expect(markers[0].getAttribute('data-icon-html')).toContain('#2563eb');
-
-        // Stop 2 (DELIVERED) -> #16a34a (groen)
         expect(markers[1].getAttribute('data-icon-html')).toContain('#16a34a');
-
-        // Stop 3 (FAILED_NOT_HOME) -> #dc2626 (rood)
         expect(markers[2].getAttribute('data-icon-html')).toContain('#dc2626');
     });
 });

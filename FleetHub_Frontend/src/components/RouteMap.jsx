@@ -21,22 +21,27 @@ function AutoFitRoute({ positions }) {
     const map = useMap();
 
     useEffect(() => {
-        map.invalidateSize();
-
-        if (positions && positions.length > 0) {
-            if (positions.length === 1) {
-                map.setView(positions[0], 14);
-            } else {
-                const bounds = L.latLngBounds(positions);
-                map.fitBounds(bounds, { padding: [50, 50] });
+        const fitMap = () => {
+            map.invalidateSize();
+            if (positions && positions.length > 0) {
+                if (positions.length === 1) {
+                    map.setView(positions[0], 14);
+                } else {
+                    const bounds = L.latLngBounds(positions);
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                }
             }
-        }
+        };
+
+        fitMap();
+        const timer = setTimeout(fitMap, 150);
+        return () => clearTimeout(timer);
     }, [positions, map]);
 
     return null;
 }
 
-export default function RouteMap({ stops = [], onSelectStop }) {
+export default function RouteMap({ stops = [], onSelectStop, minHeight = '350px' }) {
     const validSortedStops = [...stops]
         .filter((s) => s.latitude && s.longitude)
         .sort((a, b) => a.sequenceOrder - b.sequenceOrder);
@@ -45,11 +50,11 @@ export default function RouteMap({ stops = [], onSelectStop }) {
     const centerPosition = positions.length > 0 ? positions[0] : [51.4416, 5.4697];
 
     return (
-        <div className="map-container" style={{ height: '100%', width: '100%', minHeight: '350px' }}>
+        <div className="map-container" style={{ height: minHeight, width: '100%', minHeight }}>
             <MapContainer
                 center={centerPosition}
                 zoom={12}
-                style={{ height: '100%', width: '100%' }}
+                style={{ height: minHeight, width: '100%', minHeight }}
                 scrollWheelZoom={true}
             >
                 <TileLayer
