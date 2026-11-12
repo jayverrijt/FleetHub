@@ -259,10 +259,11 @@ export default function RouteView({
                         {routes.map((r) => {
                             const isInProgress = r.status === 'IN_PROGRESS';
                             return (
-                                <div
+                                <button
                                     key={r.id}
+                                    type="button"
                                     onClick={() => handleSelectRoute(r)}
-                                    className="bg-slate-950/90 border border-slate-800 hover:border-blue-500/60 rounded-xl p-4 cursor-pointer transition-all shadow-sm"
+                                    className="w-full text-left bg-slate-950/90 border border-slate-800 hover:border-blue-500/60 rounded-xl p-4 cursor-pointer transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
                                     <div className="flex justify-between items-center mb-2">
                                         <span
@@ -280,7 +281,7 @@ export default function RouteView({
                                     <p className="text-xs text-blue-400 font-medium flex items-center gap-1">
                                         Bekijk stops &amp; kaart →
                                     </p>
-                                </div>
+                                </button>
                             );
                         })}
                     </div>
