@@ -1,21 +1,42 @@
 import { useEffect, useState, useRef } from 'react';
 import { Client } from '@stomp/stompjs';
+import { API_BASE_URL } from '../services/apiClient';
 
-const rawApiUrl = import.meta.env.VITE_API_BASE_URL || '/api';
-const API_BASE_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;const WS_BROKER_URL =
-    import.meta.env.VITE_WS_URL ||
-    (API_BASE_URL.startsWith('http')
-        ? API_BASE_URL.replace(/^http/, 'ws').replace(/\/api$/, '/ws/fleet')
-        : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/fleet`);
+/**
+ * Bepaalt de WebSocket broker URL op basis van VITE_WS_URL of de geconfigureerde API_BASE_URL.
+ *
+ * @returns {string} Volledige ws:// of wss:// URL naar /ws/fleet
+ */
+export function buildWsBrokerUrl() {
+    if (import.meta.env.VITE_WS_URL) {
+        return import.meta.env.VITE_WS_URL;
+    }
 
+    const base = new URL(API_BASE_URL, window.location.origin);
+    base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
+    base.pathname = '/ws/fleet';
+    return base.toString();
+}
+
+/**
+ * Custom React hook die de actuele vlootposities ophaalt en live bijhoudt via STOMP WebSockets.
+ *
+ * 1. Haalt bij het mounten een initiële snapshot op via GET /api/fleet/positions.
+ * 2. Opent een STOMP-verbinding op /ws/fleet en abonneert zich op /topic/fleet/locations.
+ * 3. Werkt voertuigposities real-time bij in een dictionary op basis van vehicleId (of driverId als fallback).
+ *
+ * @returns {{ vehicles: Array<Object>, isConnected: boolean }} Een lijst met actieve voertuigen en de live verbindingsstatus.
+ */
 export function useFleetTelemetry() {
     const [vehicles, setVehicles] = useState({});
     const [isConnected, setIsConnected] = useState(false);
     const clientRef = useRef(null);
 
     useEffect(() => {
-        // 1. Initial snapshot ophalen via REST endpoint
-        fetch(`${API_BASE_URL}/fleet/positions`)
+        // 1. Initiële snapshot ophalen via REST endpoint
+        fetch(`${API_BASE_URL}/fleet/positions`, {
+            credentials: 'include'
+        })
             .then((res) => (res.ok ? res.json() : []))
             .then((data) => {
                 const initialMap = {};
@@ -31,9 +52,9 @@ export function useFleetTelemetry() {
             })
             .catch((err) => console.warn('[Telemetry] Kon initiële snapshot niet ophalen:', err));
 
-        // 2. STOMP subscription opzetten
+        // 2. STOMP WebSocket subscription opzetten
         const client = new Client({
-            brokerURL: WS_BROKER_URL,
+            brokerURL: buildWsBrokerUrl(),
             reconnectDelay: 5000,
             heartbeatIncoming: 4000,
             heartbeatOutgoing: 4000,
@@ -66,6 +87,7 @@ export function useFleetTelemetry() {
         client.activate();
         clientRef.current = client;
 
+        // Ruimt de WebSocket-verbinding netjes op bij het verlaten van de pagina
         return () => {
             if (clientRef.current) {
                 clientRef.current.deactivate();

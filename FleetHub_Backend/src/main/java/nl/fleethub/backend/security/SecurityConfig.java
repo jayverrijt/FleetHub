@@ -1,16 +1,13 @@
 package nl.fleethub.backend.security;
 
 import jakarta.servlet.http.HttpServletResponse;
-import nl.fleethub.backend.model.Role;
-import nl.fleethub.backend.model.User;
-import nl.fleethub.backend.repository.jpa.SpringDataUserRepository;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,6 +20,10 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Centrale Spring Security configuratie voor stateless JWT-authenticatie,
+ * Role-Based Access Control (RBAC) en gecontroleerde CORS-policies.
+ */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -42,88 +43,61 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtTokenProvider);
+    public JwtAuthenticationFilter jwtAuthenticationFilter() {
+        return new JwtAuthenticationFilter(jwtTokenProvider);
+    }
 
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((request, response, authEx) ->
+                        .authenticationEntryPoint((request, response, authException) ->
                                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Niet geauthenticeerd"))
-                        .accessDeniedHandler((request, response, accessEx) ->
-                                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Geen toegang voor deze rol"))
                 )
                 .authorizeHttpRequests(auth -> auth
-                        // 1. Publiek toegankelijk (zonder inloggen)
+                        // 1. Publieke endpoints & WebSocket handshake
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/tracking/**").permitAll()
-                        .requestMatchers("/ws/fleet/**").permitAll()   // WebSocket handshake
-                        .requestMatchers("/api/fleet/**").permitAll()  // <-- Voeg deze regel toe voor de vloot-snapshot!
+                        .requestMatchers("/ws/fleet/**").permitAll()
+                        .requestMatchers("/api/fleet/**").permitAll()
+                        .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // 2. Chauffeur (InDrive systeem)
+                        // 2. Chauffeur (InDrive)
                         .requestMatchers("/api/driver/**").hasAuthority("ROLE_COURIER")
                         .requestMatchers("/api/stops/**").hasAuthority("ROLE_COURIER")
 
-                        // 3. Routes: toegankelijk voor chauffeur (eigen routes) en dispatcher
+                        // 3. Routes (Chauffeur & Dispatcher)
                         .requestMatchers("/api/routes/**").hasAnyAuthority("ROLE_COURIER", "ROLE_DISPATCHER")
 
-                        // 4. Vlootbeheer uitsluitend voor Dispatcher
+                        // 4. Vlootbeheer (Uitsluitend Dispatcher)
                         .requestMatchers("/api/vehicles/**").hasAuthority("ROLE_DISPATCHER")
 
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-
+        CorsConfiguration config = new CorsConfiguration();
         List<String> origins = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
                 .toList();
 
-        configuration.setAllowedOriginPatterns(origins);
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"));
-        configuration.setExposedHeaders(List.of("Authorization", "Set-Cookie"));
-        configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
+        config.setAllowedOriginPatterns(origins);
+        config.setAllowedMethods(List.of("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("*"));
+        config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
+        source.registerCorsConfiguration("/**", config);
         return source;
-    }
-
-    /**
-     * Zorgt dat de testaccounts altijd bestaan met een gegarandeerd correcte BCrypt hash van 'password123'
-     */
-    @Bean
-    public CommandLineRunner initUsers(SpringDataUserRepository userRepository, PasswordEncoder passwordEncoder) {
-        return args -> {
-            userRepository.findByEmail("driver1@fleethub.nl").ifPresentOrElse(
-                    user -> {
-                        user.setPassword(passwordEncoder.encode("password123"));
-                        user.setRole(Role.ROLE_COURIER);
-                        userRepository.save(user);
-                    },
-                    () -> userRepository.save(new User(null, "driver1@fleethub.nl", passwordEncoder.encode("password123"), "Jan de Vries", Role.ROLE_COURIER))
-            );
-
-            userRepository.findByEmail("dispatcher@fleethub.nl").ifPresentOrElse(
-                    user -> {
-                        user.setPassword(passwordEncoder.encode("password123"));
-                        user.setRole(Role.ROLE_DISPATCHER);
-                        userRepository.save(user);
-                    },
-                    () -> userRepository.save(new User(null, "dispatcher@fleethub.nl", passwordEncoder.encode("password123"), "Tim de Planner", Role.ROLE_DISPATCHER))
-            );
-        };
     }
 }

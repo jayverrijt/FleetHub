@@ -59,7 +59,7 @@ jobs:
       - name: Install & Build Production Bundle
         working-directory: ./FleetHub_Frontend
         env:
-          VITE_API_BASE_URL: ${{ github.ref_name == 'main' && 'http://10.69.0.48:8080/api' || 'http://10.69.0.48:8081/api' }}
+          VITE_API_BASE_URL: ${{ github.ref_name == 'main' && 'http://10.69.0.48:8080/api' || 'http://10.69.0.48:8081/api' }} # && = THEN operator
         run: |
           npm ci
           npm run build

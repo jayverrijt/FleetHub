@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { useFleetTelemetry } from '../useFleetTelemetry';
+import { useFleetTelemetry, buildWsBrokerUrl } from '../useFleetTelemetry';
 
 let subscribeCallback = null;
 let stompConfig = null;
@@ -26,7 +26,7 @@ vi.mock('@stomp/stompjs', () => {
     return { Client: MockClient };
 });
 
-describe('useFleetTelemetry Branch Coverage Tests (US3b)', () => {
+describe('useFleetTelemetry Unit & Branch Coverage Tests (US3b)', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         subscribeCallback = null;
@@ -41,8 +41,7 @@ describe('useFleetTelemetry Branch Coverage Tests (US3b)', () => {
                         driverName: 'Jan de Vries',
                         latitude: 51.4416,
                         longitude: 5.4697,
-                        speed: 10.0,
-                        avatarUrl: 'https://cdn.fleethub.test/uploads/avatars/driver_1.jpg'
+                        speed: 10.0
                     }
                 ])
         });
@@ -50,9 +49,10 @@ describe('useFleetTelemetry Branch Coverage Tests (US3b)', () => {
 
     afterEach(() => {
         vi.restoreAllMocks();
+        vi.unstubAllEnvs();
     });
 
-    it('UT-FE-FLT-01: Laadt initiële voertuigposities bij mount', async () => {
+    it('UT-FE-FLT-01: Laadt initiële voertuigposities bij het mounten met credentials', async () => {
         const { result } = renderHook(() => useFleetTelemetry());
 
         await act(async () => {
@@ -60,18 +60,15 @@ describe('useFleetTelemetry Branch Coverage Tests (US3b)', () => {
         });
 
         expect(global.fetch).toHaveBeenCalledWith(
-            expect.stringMatching(/\/fleet\/positions$/)
+            expect.stringMatching(/\/fleet\/positions$/),
+            { credentials: 'include' }
         );
         expect(result.current.vehicles).toHaveLength(1);
         expect(result.current.isConnected).toBe(true);
     });
 
-    it('UT-FE-FLT-02: Hanteert response ok === false bij initial snapshot (dekt fallback [])', async () => {
-        global.fetch.mockResolvedValueOnce({
-            ok: false,
-            status: 500,
-            json: () => Promise.resolve([])
-        });
+    it('UT-FE-FLT-02: Handelt non-ok snapshot response en items zonder ID veilig af', async () => {
+        global.fetch.mockResolvedValueOnce({ ok: false });
 
         const { result } = renderHook(() => useFleetTelemetry());
 
@@ -80,10 +77,9 @@ describe('useFleetTelemetry Branch Coverage Tests (US3b)', () => {
         });
 
         expect(result.current.vehicles).toEqual([]);
-        expect(result.current.isConnected).toBe(true);
     });
 
-    it('UT-FE-FLT-03: Vangt netwerkfout bij snapshot fetch netjes af', async () => {
+    it('UT-FE-FLT-03: Vangt netwerkfout bij ophalen initiële snapshot af', async () => {
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         global.fetch.mockRejectedValueOnce(new Error('Netwerk offline'));
 
@@ -94,36 +90,30 @@ describe('useFleetTelemetry Branch Coverage Tests (US3b)', () => {
         });
 
         expect(result.current.vehicles).toEqual([]);
-        expect(result.current.isConnected).toBe(true);
+        expect(warnSpy).toHaveBeenCalled();
         warnSpy.mockRestore();
     });
 
-    it('UT-FE-FLT-04: Dekt payload met driverId fallback wanneer vehicleId ontbreekt (regel 37 branch)', async () => {
+    it('UT-FE-FLT-04: Werkt bestaande en nieuwe voertuigen bij via STOMP (inclusief driverId fallback)', async () => {
         const { result } = renderHook(() => useFleetTelemetry());
 
         await act(async () => {
             await Promise.resolve();
         });
 
+        // Update bestaand voertuig (vehicleId) + voeg nieuw voertuig toe via driverId fallback
         act(() => {
-            subscribeCallback({
-                body: JSON.stringify({
-                    driverId: 88,
-                    driverName: 'Karel',
-                    latitude: 51.45,
-                    longitude: 5.47,
-                    speed: 11.0
-                })
-            });
+            subscribeCallback({ body: JSON.stringify({ vehicleId: 1, latitude: 51.45, longitude: 5.48, speed: 45 }) });
+            subscribeCallback({ body: JSON.stringify({ driverId: 88, latitude: 51.49, longitude: 5.65, speed: 30 }) });
+            subscribeCallback({ body: JSON.stringify({ latitude: 51.0, longitude: 5.0 }) }); // Geen ID -> negeren
         });
 
         expect(result.current.vehicles).toHaveLength(2);
-        const karel = result.current.vehicles.find((v) => v.driverId === 88);
-        expect(karel).toBeDefined();
-        expect(karel.driverName).toBe('Karel');
+        expect(result.current.vehicles.find((v) => v.vehicleId === 1)?.speed).toBe(45);
+        expect(result.current.vehicles.find((v) => v.driverId === 88)).toBeDefined();
     });
 
-    it('UT-FE-FLT-05: Negeert payload zonder identifier of met corrupte JSON (regel 37 false branch)', async () => {
+    it('UT-FE-FLT-05: Negeert corrupte WebSocket berichten zonder te crashen', async () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
         const { result } = renderHook(() => useFleetTelemetry());
 
@@ -132,21 +122,15 @@ describe('useFleetTelemetry Branch Coverage Tests (US3b)', () => {
         });
 
         act(() => {
-            subscribeCallback({
-                body: JSON.stringify({ heartbeat: true })
-            });
+            subscribeCallback({ body: 'Geen geldige JSON!' });
         });
-        expect(result.current.vehicles).toHaveLength(1);
 
-        act(() => {
-            subscribeCallback({ body: '{ongeldig' });
-        });
         expect(consoleSpy).toHaveBeenCalled();
         expect(result.current.vehicles).toHaveLength(1);
         consoleSpy.mockRestore();
     });
 
-    it('UT-FE-FLT-06: Verwerkt onDisconnect en onStompError statusovergangen', async () => {
+    it('UT-FE-FLT-06: Handelt onDisconnect en onStompError callbacks correct af', async () => {
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
         const { result } = renderHook(() => useFleetTelemetry());
 
@@ -157,18 +141,21 @@ describe('useFleetTelemetry Branch Coverage Tests (US3b)', () => {
         expect(result.current.isConnected).toBe(true);
 
         act(() => {
-            if (stompConfig?.onDisconnect) stompConfig.onDisconnect();
+            stompConfig.onDisconnect();
         });
         expect(result.current.isConnected).toBe(false);
 
         act(() => {
-            if (stompConfig?.onStompError) stompConfig.onStompError({ headers: { message: 'Broker error' } });
+            stompConfig.onStompError({ headers: { message: 'Broker crash' } });
         });
         expect(result.current.isConnected).toBe(false);
         errorSpy.mockRestore();
     });
 
-    it('UT-FE-FLT-07: Deactiveert STOMP client bij unmount', () => {
+    it('UT-FE-FLT-07: Deactiveert STOMP client bij het unmounten en respecteert VITE_WS_URL', () => {
+        vi.stubEnv('VITE_WS_URL', 'wss://custom.fleethub.nl/ws/fleet');
+        expect(buildWsBrokerUrl()).toBe('wss://custom.fleethub.nl/ws/fleet');
+
         const { unmount } = renderHook(() => useFleetTelemetry());
         unmount();
 

@@ -93,3 +93,6 @@ Desktop.ini
 /nbbuild/
 /nbdist/
 /.nb-gradle/
+
+# Sonar
+.scannerwork/report-task.txt
